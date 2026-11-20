@@ -1,0 +1,7 @@
+{
+  "name": "nullsec_bridge",
+  "description": "NullSec native bridge",
+  "path": "/usr/local/lib/nullsec/nullsec-bridge",
+  "type": "stdio",
+  "allowed_extensions": ["nullsec@nullsec.dev"]
+}

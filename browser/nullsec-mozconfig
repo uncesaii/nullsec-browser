@@ -1,0 +1,12 @@
+ac_add_options --enable-application=browser
+ac_add_options --enable-release
+ac_add_options --enable-optimize
+ac_add_options --disable-debug
+ac_add_options --disable-tests
+ac_add_options --disable-updater
+ac_add_options --disable-lto
+ac_add_options --disable-crashreporter
+ac_add_options --disable-nodejs
+
+mk_add_options MOZ_OBJDIR=@TOPSRCDIR@/obj-nullsec
+mk_add_options MOZ_MAKE_FLAGS="-j4"

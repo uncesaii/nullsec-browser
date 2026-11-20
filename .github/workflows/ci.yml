@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nullsec-extension
+          path: dist/
+          if-no-files-found: error
+
+  native-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --manifest-path native/nullsec-bridge/Cargo.toml -- --check
+      - run: cargo clippy --manifest-path native/nullsec-bridge/Cargo.toml -- -D warnings
+      - run: cargo test --manifest-path native/nullsec-bridge/Cargo.toml
+      - run: cargo build --release --manifest-path native/nullsec-bridge/Cargo.toml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nullsec-bridge-linux
+          path: native/nullsec-bridge/target/release/nullsec-bridge
+          if-no-files-found: error
+
+  native-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --manifest-path native/nullsec-bridge/Cargo.toml -- --check
+      - run: cargo clippy --manifest-path native/nullsec-bridge/Cargo.toml -- -D warnings
+      - run: cargo test --manifest-path native/nullsec-bridge/Cargo.toml
+      - run: cargo build --release --manifest-path native/nullsec-bridge/Cargo.toml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nullsec-bridge-windows
+          path: native/nullsec-bridge/target/release/nullsec-bridge.exe
+          if-no-files-found: error

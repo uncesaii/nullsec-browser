@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+native/target/
+native/**/target/
+web-ext-artifacts/
+build/out/
+build/git_clones/
+build/torbrowser/
+build/mullvadbrowser/
+*.xpi
+*.mar

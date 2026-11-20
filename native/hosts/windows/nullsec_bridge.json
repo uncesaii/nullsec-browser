@@ -1,0 +1,7 @@
+{
+  "name": "nullsec_bridge",
+  "description": "NullSec native bridge",
+  "path": "C:\\Program Files\\NullSec\\nullsec-bridge.exe",
+  "type": "stdio",
+  "allowed_extensions": ["nullsec@nullsec.dev"]
+}

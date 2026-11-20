@@ -1,0 +1,130 @@
+name: Build NullSec Browser (Linux x64)
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Mullvad Browser source branch or tag
+        required: true
+        default: mullvad-browser-153.7.0esr-16.0-1
+      create_release:
+        description: Upload the package as a GitHub release asset
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nullsec-browser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux64:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: false
+
+      - name: Checkout control repo
+        uses: actions/checkout@v4
+
+      - name: Clone Mullvad Browser source
+        env:
+          SOURCE_REF: ${{ inputs.source_ref }}
+        run: |
+          set -eux
+          git clone --depth 1 --branch "$SOURCE_REF" \
+            https://github.com/mullvad/mullvad-browser.git src
+          git -C src log -1 --oneline
+          du -sh src
+
+      - name: Apply NullSec patches
+        run: |
+          set -eux
+          shopt -s nullglob
+          patches=(browser/patches/*.patch)
+          if [ ${#patches[@]} -eq 0 ]; then
+            echo "No NullSec patches to apply yet."
+            exit 0
+          fi
+          for p in "${patches[@]}"; do
+            echo "::group::apply $p"
+            git -C src apply --index -v "$p" || git -C src apply --3way -v "$p"
+            echo "::endgroup::"
+          done
+
+      - name: Bootstrap build dependencies
+        working-directory: src
+        env:
+          GIT_TERMINAL_PROMPT: "0"
+        run: ./mach bootstrap --application-choice browser
+
+      - name: Configure
+        working-directory: src
+        run: |
+          set -eux
+          cp ../browser/nullsec-mozconfig mozconfig
+          ./mach configure
+
+      - name: Build
+        working-directory: src
+        run: |
+          set -o pipefail
+          ./mach build 2>&1 | tee ../build.log
+
+      - name: Package
+        working-directory: src
+        run: |
+          set -o pipefail
+          ./mach package 2>&1 | tee -a ../build.log
+
+      - name: Collect package
+        if: success()
+        run: |
+          set -eux
+          mkdir -p out
+          find src/obj-nullsec/dist -maxdepth 1 -type f \
+            \( -name '*.tar.xz' -o -name '*.tar.bz2' -o -name '*.zip' \) \
+            -exec cp -v {} out/ \;
+          ls -lah out
+
+      - name: Upload package
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nullsec-browser-linux64
+          path: out/
+          if-no-files-found: error
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nullsec-browser-build-log
+          path: |
+            build.log
+            src/obj-nullsec/config.log
+          if-no-files-found: ignore
+
+      - name: Publish release
+        if: ${{ success() && inputs.create_release }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+        run: |
+          set -eux
+          tag="nullsec-$(date -u +%Y.%m.%d)-${GITHUB_RUN_NUMBER}"
+          gh release create "$tag" out/* \
+            --title "NullSec Browser $tag" \
+            --notes "Automated Linux x64 build from Mullvad source ${SOURCE_REF}." \
+            --target "$GITHUB_SHA"
