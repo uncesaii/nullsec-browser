@@ -1,0 +1,32 @@
+ac_add_options --enable-application=browser
+ac_add_options --with-base-browser-version=16.0.2
+ac_add_options --enable-release
+ac_add_options --enable-optimize
+ac_add_options --disable-debug
+ac_add_options --disable-tests
+ac_add_options --disable-debug-symbols
+ac_add_options --disable-updater
+ac_add_options --disable-lto
+ac_add_options --disable-crashreporter
+ac_add_options --disable-nodejs
+ac_add_options --disable-bootstrap
+ac_add_options --enable-strip
+
+ac_add_options --without-wasm-sandboxed-libraries
+
+ac_add_options --target=x86_64-pc-windows-gnu
+ac_add_options --with-toolchain-prefix=x86_64-w64-mingw32-
+ac_add_options --disable-notification-server
+ac_add_options --disable-zucchini
+
+export CC=x86_64-w64-mingw32-clang
+export CXX=x86_64-w64-mingw32-clang++
+export AR=llvm-ar
+export RANLIB=llvm-ranlib
+export CFLAGS="-include _mingw.h"
+export CXXFLAGS="-fms-extensions -include _mingw.h"
+export BINDGEN_CFLAGS="-I$LLVM_MINGW/x86_64-w64-mingw32/include -I$LLVM_MINGW/x86_64-w64-mingw32/include/c++/v1 -I$LLVM_MINGW/include/c++/v1"
+
+mk_add_options MOZ_OBJDIR=@TOPSRCDIR@/obj-nullsec-win64
+mk_add_options MOZ_MAKE_FLAGS="-j4"
+mk_add_options MOZ_PARALLEL_BUILD=4
