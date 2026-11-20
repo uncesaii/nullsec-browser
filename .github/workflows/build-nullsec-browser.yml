@@ -189,6 +189,13 @@ jobs:
           echo "$HOME/llvm-mingw/bin" >> "$GITHUB_PATH"
           ls "$HOME/llvm-mingw/bin" | grep -E 'mingw32-clang|llvm-ar' || true
 
+      - name: Add Rust Windows target
+        run: |
+          set -eux
+          export PATH="$HOME/.cargo/bin:$PATH"
+          rustup target add x86_64-pc-windows-gnu
+          rustup target list --installed
+
       - name: Configure
         working-directory: src
         env:
