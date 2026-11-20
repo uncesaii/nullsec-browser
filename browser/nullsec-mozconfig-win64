@@ -10,14 +10,16 @@ ac_add_options --disable-lto
 ac_add_options --disable-crashreporter
 ac_add_options --disable-nodejs
 ac_add_options --disable-bootstrap
-ac_add_options --enable-strip
-
-ac_add_options --without-wasm-sandboxed-libraries
 
 ac_add_options --target=x86_64-pc-windows-gnu
 ac_add_options --with-toolchain-prefix=x86_64-w64-mingw32-
+ac_add_options --disable-warnings-as-errors
+
+ac_add_options --disable-webrtc
+ac_add_options --disable-geckodriver
+ac_add_options --disable-update-agent
+ac_add_options --disable-default-browser-agent
 ac_add_options --disable-notification-server
-ac_add_options --disable-zucchini
 
 export CC=x86_64-w64-mingw32-clang
 export CXX=x86_64-w64-mingw32-clang++
