@@ -76,11 +76,24 @@ jobs:
           cp ../browser/nullsec-mozconfig mozconfig
           ./mach configure
 
+      - name: Disk before build
+        run: df -h /
+
       - name: Build
         working-directory: src
         run: |
           set -o pipefail
           ./mach build 2>&1 | tee ../build.log
+
+      - name: Show build failure
+        if: failure()
+        run: |
+          echo "::group::last 400 lines of build.log"
+          tail -n 400 build.log || true
+          echo "::endgroup::"
+          echo "::group::disk usage"
+          df -h /
+          echo "::endgroup::"
 
       - name: Package
         working-directory: src
