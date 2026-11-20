@@ -214,12 +214,10 @@ jobs:
             https://firefox-ci-tc.services.mozilla.com/api/queue/v1/task/GfgAotOKSeu53g0QOJcuIg/artifacts/public/build/wine.tar.zst
           mkdir -p "$HOME/wine"
           tar --zstd -xf /tmp/wine.tar.zst -C "$HOME/wine" --strip-components=1
-          find "$HOME/wine" -maxdepth 3 -type f -name 'wine*' | head
-          bin="$(dirname "$(find "$HOME/wine" \( -name wine -o -name wine64 \) -type f | head -1)")"
-          test -n "$bin"
-          echo "$bin" >> "$GITHUB_PATH"
+          find "$HOME/wine" -type f \( -name wine -o -name wine64 \) | while read -r w; do
+            echo "$(dirname "$w")" >> "$GITHUB_PATH"
+          done
           echo "WINEPREFIX=$HOME/.wine" >> "$GITHUB_ENV"
-          echo "PATH=$bin:$PATH" >> "$GITHUB_ENV"
 
       - name: Install Mozilla fxc2
         run: |
@@ -254,11 +252,17 @@ jobs:
             https://aka.ms/windowsappsdk/2.2/2.2.0/Microsoft.WindowsAppRuntime.Redist.2.2.zip
           mkdir -p "$HOME/wasdk"
           unzip -q /tmp/wasdk.zip -d "$HOME/wasdk"
-          msix="$(find "$HOME/wasdk/MSIX/win10-x64" -name '*.msix' | head -1)"
-          test -n "$msix"
-          mkdir -p "$HOME/wasdk/out"
-          unzip -q "$msix" -d "$HOME/wasdk/out"
-          test -f "$HOME/wasdk/out/Microsoft.WindowsAppRuntime.dll"
+          found=0
+          for msix in "$HOME"/wasdk/MSIX/win10-x64/*.msix; do
+            rm -rf "$HOME/wasdk/out"
+            mkdir -p "$HOME/wasdk/out"
+            unzip -q "$msix" -d "$HOME/wasdk/out"
+            if [ -f "$HOME/wasdk/out/Microsoft.WindowsAppRuntime.dll" ]; then
+              found=1
+              break
+            fi
+          done
+          test "$found" = 1
           ls "$HOME/wasdk/out" | head -30
           echo "MOZ_WINDOWS_APP_SDK_DIR=$HOME/wasdk/out" >> "$GITHUB_ENV"
 
