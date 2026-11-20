@@ -199,22 +199,27 @@ jobs:
           echo "$HOME/llvm-mingw/bin" >> "$GITHUB_PATH"
           ls "$HOME/llvm-mingw/bin" | grep -E 'mingw32-clang|llvm-ar' || true
 
-      - name: Install Wine and zstd
+      - name: Install build tools
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
           set -eux
-          sudo sed -i 's/^# deb /deb /' /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null || true
           sudo apt-get update
-          sudo dpkg --add-architecture i386
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            -o Dpkg::Options::=--force-confnew \
-            zstd nasm wine wine32:i386 wine64 || \
-          sudo apt-get install -y --no-install-recommends \
-            -o Dpkg::Options::=--force-confnew \
-            zstd nasm wine64
-          wine --version || true
+          sudo apt-get install -y --no-install-recommends zstd nasm unzip
+
+      - name: Install Mozilla Wine
+        run: |
+          set -eux
+          curl -fL --retry 5 -o /tmp/wine.tar.zst \
+            https://firefox-ci-tc.services.mozilla.com/api/queue/v1/task/GfgAotOKSeu53g0QOJcuIg/artifacts/public/build/wine.tar.zst
+          mkdir -p "$HOME/wine"
+          tar --zstd -xf /tmp/wine.tar.zst -C "$HOME/wine" --strip-components=1
+          find "$HOME/wine" -maxdepth 3 -type f -name 'wine*' | head
+          bin="$(dirname "$(find "$HOME/wine" \( -name wine -o -name wine64 \) -type f | head -1)")"
+          test -n "$bin"
+          echo "$bin" >> "$GITHUB_PATH"
+          echo "WINEPREFIX=$HOME/.wine" >> "$GITHUB_ENV"
+          echo "PATH=$bin:$PATH" >> "$GITHUB_ENV"
 
       - name: Install Mozilla fxc2
         run: |
@@ -228,7 +233,7 @@ jobs:
           mv "$bin/fxc2.exe" "$bin/fxc2-real.exe"
           printf '%s\n' '#!/bin/sh' 'export WINEDEBUG=-all' \
             'export WINEDLLOVERRIDES="mscoree,mshtml="' \
-            'exec wine "$HOME/fxc2/bin/fxc2-real.exe" "$@"' \
+            'exec "$(command -v wine || command -v wine64)" "$HOME/fxc2/bin/fxc2-real.exe" "$@"' \
             > "$bin/fxc2.exe"
           chmod +x "$bin/fxc2.exe" "$bin/fxc2-real.exe"
           echo "$bin" >> "$GITHUB_PATH"
