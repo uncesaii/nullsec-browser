@@ -195,7 +195,7 @@ jobs:
           export PATH="$HOME/.cargo/bin:$PATH"
           rustup toolchain list || true
           rustup target add --toolchain stable-x86_64-unknown-linux-gnu \
-            x86_64-pc-windows-gnu
+            x86_64-pc-windows-gnu x86_64-pc-windows-gnullvm
           rustup target list --toolchain stable-x86_64-unknown-linux-gnu --installed
 
       - name: Configure
