@@ -242,6 +242,19 @@ jobs:
             x86_64-pc-windows-gnu x86_64-pc-windows-gnullvm
           rustup target list --toolchain stable-x86_64-unknown-linux-gnu --installed
 
+      - name: Install Windows App SDK
+        run: |
+          set -eux
+          curl -fL --retry 5 -o /tmp/wasdk.zip \
+            https://aka.ms/windowsappsdk/2.2/2.2.0/Microsoft.WindowsAppRuntime.Redist.2.2.zip
+          mkdir -p "$HOME/wasdk"
+          unzip -q /tmp/wasdk.zip -d "$HOME/wasdk"
+          dll="$(find "$HOME/wasdk" -name 'Microsoft.WindowsAppRuntime.dll' | head -1)"
+          test -n "$dll"
+          d="$(dirname "$dll")"
+          ls "$d" | head -30
+          echo "MOZ_WINDOWS_APP_SDK_DIR=$d" >> "$GITHUB_ENV"
+
       - name: Configure
         working-directory: src
         env:
