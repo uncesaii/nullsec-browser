@@ -179,6 +179,16 @@ jobs:
           GIT_TERMINAL_PROMPT: "0"
         run: ./mach bootstrap --application-choice browser
 
+      - name: Ensure cargo tools on PATH
+        run: |
+          set -eux
+          export PATH="$HOME/.cargo/bin:$PATH"
+          if ! command -v cbindgen >/dev/null 2>&1; then
+            cargo install cbindgen --locked
+          fi
+          command -v cbindgen
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
       - name: Install llvm-mingw toolchain
         run: |
           set -eux
