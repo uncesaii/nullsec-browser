@@ -220,10 +220,9 @@ jobs:
             test -e "$HOME/wine/lib/wine/x86_64-unix/wine"
             echo "$HOME/wine/lib/wine/x86_64-unix" >> "$GITHUB_PATH"
           fi
-          echo "WINEPREFIX=$HOME/.wine32" >> "$GITHUB_ENV"
-          echo "WINEARCH=win32" >> "$GITHUB_ENV"
+          echo "WINEPREFIX=$HOME/.wine" >> "$GITHUB_ENV"
           export PATH="$HOME/wine/bin:$PATH"
-          export WINEPREFIX="$HOME/.wine32" WINEARCH=win32
+          export WINEPREFIX="$HOME/.wine"
           timeout 180 xvfb-run -a wineboot -u
 
       - name: Install Mozilla fxc2
@@ -290,15 +289,14 @@ jobs:
       - name: Smoke-test fxc2
         run: |
           set -x
-          export WINEPREFIX="$HOME/.wine32" WINEARCH=win32 WINEDLLOVERRIDES=d3dcompiler_47=n
+          export WINEPREFIX="$HOME/.wine" WINEDLLOVERRIDES=d3dcompiler_47=n
           timeout 120 xvfb-run -a wine "$HOME/fxc2/bin/fxc2.exe" -? 2>&1 | head -40 || true
 
       - name: Build
         working-directory: src
         env:
           LLVM_MINGW: /home/runner/llvm-mingw
-          WINEARCH: win32
-          WINEPREFIX: /home/runner/.wine32
+          WINEPREFIX: /home/runner/.wine
           WINEDLLOVERRIDES: d3dcompiler_47=n
         run: |
           set -o pipefail
