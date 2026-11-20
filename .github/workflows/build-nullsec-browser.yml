@@ -204,8 +204,10 @@ jobs:
           DEBIAN_FRONTEND: noninteractive
         run: |
           set -eux
+          sudo dpkg --add-architecture i386
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends zstd nasm unzip xvfb xauth
+          sudo apt-get install -y --no-install-recommends \
+            zstd nasm unzip xvfb xauth libc6:i386 libstdc++6:i386 libgcc-s1:i386
 
       - name: Install Mozilla Wine
         run: |
