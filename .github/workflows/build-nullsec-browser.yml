@@ -214,9 +214,12 @@ jobs:
             https://firefox-ci-tc.services.mozilla.com/api/queue/v1/task/GfgAotOKSeu53g0QOJcuIg/artifacts/public/build/wine.tar.zst
           mkdir -p "$HOME/wine"
           tar --zstd -xf /tmp/wine.tar.zst -C "$HOME/wine" --strip-components=1
-          find "$HOME/wine" -type f \( -name wine -o -name wine64 \) | while read -r w; do
-            echo "$(dirname "$w")" >> "$GITHUB_PATH"
-          done
+          if [ -e "$HOME/wine/bin/wine" ]; then
+            echo "$HOME/wine/bin" >> "$GITHUB_PATH"
+          else
+            test -e "$HOME/wine/lib/wine/x86_64-unix/wine"
+            echo "$HOME/wine/lib/wine/x86_64-unix" >> "$GITHUB_PATH"
+          fi
           echo "WINEPREFIX=$HOME/.wine" >> "$GITHUB_ENV"
 
       - name: Install Mozilla fxc2
@@ -265,6 +268,15 @@ jobs:
           test "$found" = 1
           ls "$HOME/wasdk/out" | head -30
           echo "MOZ_WINDOWS_APP_SDK_DIR=$HOME/wasdk/out" >> "$GITHUB_ENV"
+
+      - name: Install windows crate source
+        run: |
+          set -eux
+          curl -fL --retry 5 -o /tmp/windows.crate \
+            https://crates.io/api/v1/crates/windows/0.62.2/download
+          tar -xzf /tmp/windows.crate -C "$HOME"
+          test -d "$HOME/windows-0.62.2"
+          echo "MOZ_WINDOWS_RS_DIR=$HOME/windows-0.62.2" >> "$GITHUB_ENV"
 
       - name: Configure
         working-directory: src
