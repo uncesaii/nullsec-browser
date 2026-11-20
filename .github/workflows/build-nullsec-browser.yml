@@ -199,6 +199,33 @@ jobs:
           echo "$HOME/llvm-mingw/bin" >> "$GITHUB_PATH"
           ls "$HOME/llvm-mingw/bin" | grep -E 'mingw32-clang|llvm-ar' || true
 
+      - name: Install Wine and zstd
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends wine wine32 wine64 zstd
+
+      - name: Install Mozilla fxc2
+        run: |
+          set -eux
+          curl -fL --retry 5 -o /tmp/fxc2.tar.zst \
+            https://firefox-ci-tc.services.mozilla.com/api/queue/v1/task/Nf6JL7k5R1aGaTPIOwxEhA/artifacts/public/build/fxc2.tar.zst
+          mkdir -p "$HOME/fxc2"
+          tar --zstd -xf /tmp/fxc2.tar.zst -C "$HOME/fxc2"
+          find "$HOME/fxc2" -maxdepth 3 -type f
+          mkdir -p "$HOME/fxc2/wrappers"
+          for name in fxc fxc2; do
+            printf '%s\n' '#!/bin/sh' 'export WINEDEBUG=-all' \
+              'export WINEDLLOVERRIDES="mscoree,mshtml="' \
+              'exec wine "$HOME/fxc2/bin/fxc2.exe" "$@"' \
+              > "$HOME/fxc2/wrappers/$name"
+            chmod +x "$HOME/fxc2/wrappers/$name"
+          done
+          echo "$HOME/fxc2/wrappers" >> "$GITHUB_PATH"
+          echo "$HOME/fxc2/bin" >> "$GITHUB_PATH"
+
       - name: Add Rust Windows target
         run: |
           set -eux
