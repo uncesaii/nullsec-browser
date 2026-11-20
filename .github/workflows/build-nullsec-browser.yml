@@ -200,12 +200,21 @@ jobs:
           ls "$HOME/llvm-mingw/bin" | grep -E 'mingw32-clang|llvm-ar' || true
 
       - name: Install Wine and zstd
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
           set -eux
+          sudo sed -i 's/^# deb /deb /' /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null || true
           sudo apt-get update
           sudo dpkg --add-architecture i386
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends wine wine32 wine64 zstd nasm
+          sudo apt-get install -y --no-install-recommends \
+            -o Dpkg::Options::=--force-confnew \
+            zstd nasm wine wine32:i386 wine64 || \
+          sudo apt-get install -y --no-install-recommends \
+            -o Dpkg::Options::=--force-confnew \
+            zstd nasm wine64
+          wine --version || true
 
       - name: Install Mozilla fxc2
         run: |
