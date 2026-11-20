@@ -11,6 +11,8 @@ ac_add_options --disable-crashreporter
 ac_add_options --disable-nodejs
 ac_add_options --disable-bootstrap
 
+ac_add_options --without-wasm-sandboxed-libraries
+
 ac_add_options --target=x86_64-pc-windows-gnu
 ac_add_options --with-toolchain-prefix=x86_64-w64-mingw32-
 ac_add_options --disable-warnings-as-errors
