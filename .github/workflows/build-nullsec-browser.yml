@@ -231,12 +231,8 @@ jobs:
           tar --zstd -xf /tmp/fxc2.tar.zst -C "$HOME/fxc2" --strip-components=1
           find "$HOME/fxc2" -maxdepth 3 -type f
           bin="$HOME/fxc2/bin"
-          mv "$bin/fxc2.exe" "$bin/fxc2-real.exe"
-          printf '%s\n' '#!/bin/sh' 'export WINEDEBUG=-all' \
-            'export WINEDLLOVERRIDES="mscoree,mshtml="' \
-            'exec "$(command -v wine || command -v wine64)" "$HOME/fxc2/bin/fxc2-real.exe" "$@"' \
-            > "$bin/fxc2.exe"
-          chmod +x "$bin/fxc2.exe" "$bin/fxc2-real.exe"
+          test -f "$bin/d3dcompiler_47.dll"
+          chmod +x "$bin/fxc2.exe"
           echo "$bin" >> "$GITHUB_PATH"
 
       - name: Add Rust Windows target
