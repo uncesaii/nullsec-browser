@@ -1,0 +1,18 @@
+diff --git a/third_party/rust/pkcs11-bindings/build.rs b/third_party/rust/pkcs11-bindings/build.rs
+index 602630a9..be8f32bc 100644
+--- a/third_party/rust/pkcs11-bindings/build.rs
++++ b/third_party/rust/pkcs11-bindings/build.rs
+@@ -49,6 +49,13 @@ fn main() {
+         .allowlist_var("CKT_.*")
+         .derive_default(true)
+         .parse_callbacks(Box::new(PKCS11TypesParseCallbacks))
++        .clang_arg(format!(
++            "--target={}",
++            match env::var("TARGET").unwrap_or_default() {
++                t if t.contains("windows-gnullvm") => "x86_64-w64-mingw32".to_string(),
++                t => t,
++            }
++        ))
+         .generate()
+         .expect("Unable to generate bindings");
+ 
