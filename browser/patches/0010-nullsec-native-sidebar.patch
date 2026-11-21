@@ -1,23 +1,21 @@
-diff --git a/browser/app/profile/000-nullsec.js b/browser/app/profile/000-nullsec.js
-new file mode 100644
-index 00000000..3792ae48
---- /dev/null
-+++ b/browser/app/profile/000-nullsec.js
-@@ -0,0 +1,13 @@
-+// This Source Code Form is subject to the terms of the Mozilla Public
-+// License, v. 2.0. If a copy of the MPL was not distributed with this
-+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+diff --git a/browser/app/profile/000-mullvad-browser.js b/browser/app/profile/000-mullvad-browser.js
+index 3636c5d0..f8e0ff06 100644
+--- a/browser/app/profile/000-mullvad-browser.js
++++ b/browser/app/profile/000-mullvad-browser.js
+@@ -56,3 +56,13 @@ pref("browser.selectiveSavingMode.enabled", false);
+ #else
+ pref("browser.selectiveSavingMode.enabled", true);
+ #endif
 +
++// NullSec native sidebar and AI defaults.
 +pref("sidebar.revamp", true);
 +pref("sidebar.main.tools", "nullsec,bookmarks");
-+
 +pref("browser.nullsec.sidebar.enabled", true);
 +pref("browser.nullsec.ai.provider", "openai");
 +pref("browser.nullsec.ai.baseurl", "https://api.openai.com/v1");
 +pref("browser.nullsec.ai.model", "gpt-4o-mini");
 +pref("browser.nullsec.ai.temperature", "0.3");
 +pref("browser.nullsec.ai.system", "");
-\ No newline at end of file
 diff --git a/browser/components/moz.build b/browser/components/moz.build
 index 7c5e6323..14c7662c 100644
 --- a/browser/components/moz.build
@@ -2324,18 +2322,6 @@ index 20658cda..7db72626 100644
      this.registerPrefSidebar(
        "browser.ml.chat.enabled",
        "viewGenaiChatSidebar",
-diff --git a/browser/installer/package-manifest.in b/browser/installer/package-manifest.in
-index 08886723..57301fde 100644
---- a/browser/installer/package-manifest.in
-+++ b/browser/installer/package-manifest.in
-@@ -282,6 +282,7 @@
- ; Remote Settings JSON dumps
- @RESPATH@/browser/defaults/settings
- @RESPATH@/browser/@PREF_DIR@/000-mullvad-browser.js
-+@RESPATH@/browser/@PREF_DIR@/000-nullsec.js
- @RESPATH@/browser/@PREF_DIR@/001-base-profile.js
- 
- # channel-prefs.js has been removed on macOS.
 diff --git a/browser/locales/en-US/browser/sidebar.ftl b/browser/locales/en-US/browser/sidebar.ftl
 index aced1cce..b608b76e 100644
 --- a/browser/locales/en-US/browser/sidebar.ftl
@@ -2347,15 +2333,3 @@ index aced1cce..b608b76e 100644
 +
 +menu-view-nullsec-sidebar = NullSec
 +sidebar-menu-nullsec-label = NullSec
-diff --git a/browser/moz.build b/browser/moz.build
-index 01246b4f..cb7d1fb7 100644
---- a/browser/moz.build
-+++ b/browser/moz.build
-@@ -53,6 +53,7 @@ if CONFIG["MOZ_ARTIFACT_BUILDS"]:
- # this directory, which is un-set in browser/app.
- JS_PREFERENCE_PP_FILES += [
-     "app/profile/000-mullvad-browser.js",
-+    "app/profile/000-nullsec.js",
-     "app/profile/001-base-profile.js",
-     "app/profile/firefox.js",
- ]
