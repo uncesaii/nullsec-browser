@@ -1,0 +1,16 @@
+diff --git a/tools/profiler/rust-api/build.rs b/tools/profiler/rust-api/build.rs
+index 7f9e2701..f97153c5 100644
+--- a/tools/profiler/rust-api/build.rs
++++ b/tools/profiler/rust-api/build.rs
+@@ -106,7 +106,10 @@ fn generate_bindings() {
+         // Finish the builder and generate the bindings.
+         .generate()
+         // Unwrap the Result and panic on failure.
+-        .expect("Unable to generate bindings");
++        .unwrap_or_else(|e| {
++            println!("NULLSEC_BINDGEN_ERROR: {:#?}", e);
++            panic!("Unable to generate bindings");
++        });
+ 
+     let out_file = OUTDIR_PATH.join(BINDINGS_FILE);
+     bindings
