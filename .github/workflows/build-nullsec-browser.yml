@@ -189,15 +189,17 @@ jobs:
           command -v cbindgen
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
-      - name: Install llvm-mingw toolchain
+      - name: Install Mozilla clang-mingw toolchain
         run: |
           set -eux
-          curl -fL --retry 5 -o /tmp/llvm-mingw.tar.xz \
-            https://github.com/mstorsjo/llvm-mingw/releases/download/20261117/llvm-mingw-20261117-ucrt-ubuntu-22.04-x86_64.tar.xz
-          mkdir -p "$HOME/llvm-mingw"
-          tar -xJf /tmp/llvm-mingw.tar.xz -C "$HOME/llvm-mingw" --strip-components=1
-          echo "$HOME/llvm-mingw/bin" >> "$GITHUB_PATH"
-          ls "$HOME/llvm-mingw/bin" | grep -E 'mingw32-clang|llvm-ar' || true
+          curl -fL --retry 5 -o /tmp/clangmingw.tar.zst \
+            https://firefox-ci-tc.services.mozilla.com/api/queue/v1/task/EooM6zS6T-mnn1sRIgXQRg/artifacts/public/build/clangmingw.tar.zst
+          mkdir -p "$HOME/clang"
+          tar --zstd -xf /tmp/clangmingw.tar.zst -C "$HOME/clang" --strip-components=1
+          test -x "$HOME/clang/bin/x86_64-w64-mingw32-clang"
+          test -f "$HOME/clang/lib/libclang.so"
+          echo "$HOME/clang/bin" >> "$GITHUB_PATH"
+          ls "$HOME/clang/bin" | grep -E 'mingw32-clang|llvm-ar|widl' || true
 
       - name: Install build tools
         env:
@@ -282,7 +284,7 @@ jobs:
       - name: Configure
         working-directory: src
         env:
-          LLVM_MINGW: /home/runner/llvm-mingw
+          LLVM_MINGW: /home/runner/clang
         run: |
           set -eux
           cp ../browser/nullsec-mozconfig-win64 mozconfig
@@ -297,7 +299,7 @@ jobs:
       - name: Build
         working-directory: src
         env:
-          LLVM_MINGW: /home/runner/llvm-mingw
+          LLVM_MINGW: /home/runner/clang
           WINEPREFIX: /home/runner/.wine
           WINEDLLOVERRIDES: d3dcompiler_47=n
         run: |
