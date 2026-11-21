@@ -19,6 +19,10 @@ on:
         description: Upload the package as a GitHub release asset
         type: boolean
         default: false
+      build_target:
+        description: Optional mach build target (debug)
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -306,9 +310,10 @@ jobs:
           WINEDLLOVERRIDES: d3dcompiler_47=n
           RUST_BACKTRACE: "1"
           STYLO_BUILD_LOG: /tmp/nullsec-stylo-bindgen.log
+          BUILD_VERBOSE_LOG: "1"
         run: |
           set -o pipefail
-          xvfb-run -a ./mach build 2>&1 | tee ../build.log
+          xvfb-run -a ./mach build ${{ inputs.build_target }} 2>&1 | tee ../build.log
 
       - name: Show build failure
         if: failure()
