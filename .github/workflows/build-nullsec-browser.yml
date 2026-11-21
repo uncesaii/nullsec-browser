@@ -93,9 +93,6 @@ jobs:
       - name: Show build failure
         if: failure()
         run: |
-          echo "::group::nullsec bindgen panic"
-          cat /tmp/nullsec-profiler-panic.txt || true
-          echo "::endgroup::"
           echo "::group::last 400 lines of build.log"
           tail -n 400 build.log || true
           echo "::endgroup::"
@@ -315,9 +312,6 @@ jobs:
       - name: Show build failure
         if: failure()
         run: |
-          echo "::group::nullsec bindgen panic"
-          cat /tmp/nullsec-profiler-panic.txt || true
-          echo "::endgroup::"
           echo "::group::last 400 lines of build.log"
           tail -n 400 build.log || true
           echo "::endgroup::"

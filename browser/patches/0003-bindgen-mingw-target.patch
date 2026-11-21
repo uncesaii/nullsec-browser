@@ -1,15 +1,19 @@
 diff --git a/build/moz.configure/bindgen.configure b/build/moz.configure/bindgen.configure
-index 078937dd..56c29ceb 100644
+index 078937dd..a7b3e1f4 100644
 --- a/build/moz.configure/bindgen.configure
 +++ b/build/moz.configure/bindgen.configure
-@@ -343,6 +343,11 @@ def basic_bindgen_cflags(
+@@ -343,6 +343,15 @@ def basic_bindgen_cflags(
          ],
      }.get(target.os, [])
  
-+    # bindgen passes the windows-gnullvm Rust target to clang unchanged, which
-+    # clang rejects. Use the mingw triple instead.
++    # When cross-compiling for Windows with clang (mingw), bindgen passes the
++    # Rust "windows-gnullvm" triple to clang unchanged, which clang rejects.
++    # Use the mingw triple instead.  Also add -fms-extensions so that libclang
++    # can parse mingw headers that use __declspec, anonymous structs/unions,
++    # and other MSVC extensions (without this, bindgen's IR ends up with
++    # dangling item references that panic during layout computation).
 +    if target.os == "WINNT" and compiler_info.type == "clang":
-+        args.append("--target=x86_64-pc-windows-gnu")
++        args += ["--target=x86_64-pc-windows-gnu", "-fms-extensions"]
 +
      if compiler_info.type == "clang-cl":
          args += [
