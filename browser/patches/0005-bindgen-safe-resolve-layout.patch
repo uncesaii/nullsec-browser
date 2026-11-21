@@ -34,14 +34,17 @@ index c67f9a2..e09ca3b 100644
                  }
              }
 diff --git a/third_party/rust/bindgen/ir/context.rs b/third_party/rust/bindgen/ir/context.rs
-index 346d293..ed5eaab 100644
+index 346d293..c5886ef 100644
 --- a/third_party/rust/bindgen/ir/context.rs
 +++ b/third_party/rust/bindgen/ir/context.rs
-@@ -1003,10 +1003,12 @@ If you encounter an error missing from this list, please file an issue or a PR!"
+@@ -1003,10 +1003,15 @@ If you encounter an error missing from this list, please file an issue or a PR!"
          let need_bitfield_allocation =
              mem::take(&mut self.need_bitfield_allocation);
          for id in need_bitfield_allocation {
-+            let layout = self.safe_resolve_type(id).and_then(|ty| ty.layout(self));
++            let layout = self
++                .resolve_item_fallible(id)
++                .and_then(|item| item.kind().as_type())
++                .and_then(|ty| ty.layout(self));
              self.with_loaned_item(id, |ctx, item| {
 -                let ty = item.kind_mut().as_type_mut().unwrap();
 -                let layout = ty.layout(ctx);
