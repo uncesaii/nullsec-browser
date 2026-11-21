@@ -33,6 +33,8 @@ export AR=llvm-ar
 export RANLIB=llvm-ranlib
 export CFLAGS="-fms-extensions -include _mingw.h"
 export CXXFLAGS="-fms-extensions -include _mingw.h"
+export BINDGEN_EXTRA_CLANG_ARGS="--target=x86_64-w64-mingw32"
+export BINDGEN_EXTRA_CLANG_ARGS_x86_64_pc_windows_gnullvm="--target=x86_64-w64-mingw32"
 
 
 mk_add_options MOZ_OBJDIR=@TOPSRCDIR@/obj-nullsec-win64

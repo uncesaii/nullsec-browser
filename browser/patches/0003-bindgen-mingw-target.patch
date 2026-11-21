@@ -1,0 +1,16 @@
+diff --git a/build/moz.configure/bindgen.configure b/build/moz.configure/bindgen.configure
+index 078937dd..58c6111f 100644
+--- a/build/moz.configure/bindgen.configure
++++ b/build/moz.configure/bindgen.configure
+@@ -343,6 +343,11 @@ def basic_bindgen_cflags(
+         ],
+     }.get(target.os, [])
+ 
++    # bindgen passes the windows-gnullvm Rust target to clang unchanged, which
++    # clang rejects. Use the mingw triple instead.
++    if target.os == "WINNT" and compiler_info.type == "clang":
++        args.append("--target=x86_64-w64-mingw32")
++
+     if compiler_info.type == "clang-cl":
+         args += [
+             # To enable the builtin __builtin_offsetof so that CRT wouldn't
