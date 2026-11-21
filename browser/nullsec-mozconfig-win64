@@ -31,7 +31,7 @@ export CC=x86_64-w64-mingw32-clang
 export CXX=x86_64-w64-mingw32-clang++
 export AR=llvm-ar
 export RANLIB=llvm-ranlib
-export CFLAGS="-fms-extensions -include _mingw.h"
+export CFLAGS="-fms-extensions -include _mingw.h -Wno-error=incompatible-pointer-types"
 export CXXFLAGS="-fms-extensions -include _mingw.h"
 
 

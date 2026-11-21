@@ -1,0 +1,22 @@
+diff --git a/nsprpub/pr/src/md/windows/w95sock.c b/nsprpub/pr/src/md/windows/w95sock.c
+index a07b1b9..c307a9b 100644
+--- a/nsprpub/pr/src/md/windows/w95sock.c
++++ b/nsprpub/pr/src/md/windows/w95sock.c
+@@ -97,7 +97,7 @@ PRInt32 _MD_CloseSocket(PROsfd osfd) {
+ PRInt32 _MD_SocketAvailable(PRFileDesc* fd) {
+   PRInt32 result;
+ 
+-  if (ioctlsocket(fd->secret->md.osfd, FIONREAD, &result) < 0) {
++  if (ioctlsocket(fd->secret->md.osfd, FIONREAD, (u_long*)&result) < 0) {
+     PR_SetError(PR_BAD_DESCRIPTOR_ERROR, WSAGetLastError());
+     return -1;
+   }
+@@ -313,7 +313,7 @@ static PRStatus PR_CALLBACK _pr_set_connectex(void) {
+ 
+   GUID guid = WSAID_CONNECTEX;
+   rc = WSAIoctl(sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid),
+-                &_pr_win_connectex, sizeof(_pr_win_connectex), &dwBytes, NULL,
++                &_pr_win_connectex, sizeof(_pr_win_connectex), (LPDWORD)&dwBytes, NULL,
+                 NULL);
+   if (rc != 0) {
+     _pr_win_connectex = NULL;

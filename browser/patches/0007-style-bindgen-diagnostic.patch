@@ -1,0 +1,40 @@
+diff --git a/servo/components/style/build.rs b/servo/components/style/build.rs
+index fb1f5e3..c21cfde 100644
+--- a/servo/components/style/build.rs
++++ b/servo/components/style/build.rs
+@@ -67,6 +67,12 @@ fn generate_properties(engine: &str) {
+ }
+ 
+ fn main() {
++    std::panic::set_hook(Box::new(|info| {
++        let bt = std::backtrace::Backtrace::force_capture();
++        let msg = format!("STYLE PANIC:\n{}\n{}", info, bt);
++        let _ = std::fs::write("/tmp/nullsec-style-panic.txt", &msg);
++        eprintln!("{}", msg);
++    }));
+     let gecko = cfg!(feature = "gecko");
+     let servo = cfg!(feature = "servo");
+     let engine = match (gecko, servo) {
+diff --git a/servo/components/style/build_gecko.rs b/servo/components/style/build_gecko.rs
+index a4d2c86..4a69552 100644
+--- a/servo/components/style/build_gecko.rs
++++ b/servo/components/style/build_gecko.rs
+@@ -177,11 +177,14 @@ fn write_binding_file(builder: Builder, file: &str, fixups: &[Fixup]) {
+     let result = builder.generate();
+     let mut result = match result {
+         Ok(bindings) => bindings.to_string(),
+-        Err(_) => {
+-            panic!(
+-                "Failed to generate bindings, flags: {:?}",
+-                command_line_opts
++        Err(e) => {
++            let msg = format!(
++                "Failed to generate bindings: {:?}\nflags: {:?}",
++                e, command_line_opts
+             );
++            let _ = fs::write("/tmp/nullsec-style-panic.txt", &msg);
++            eprintln!("{}", msg);
++            panic!("{}", msg);
+         },
+     };
+ 

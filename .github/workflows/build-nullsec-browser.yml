@@ -305,6 +305,7 @@ jobs:
           WINEPREFIX: /home/runner/.wine
           WINEDLLOVERRIDES: d3dcompiler_47=n
           RUST_BACKTRACE: "1"
+          STYLO_BUILD_LOG: /tmp/nullsec-stylo-bindgen.log
         run: |
           set -o pipefail
           xvfb-run -a ./mach build 2>&1 | tee ../build.log
@@ -312,6 +313,12 @@ jobs:
       - name: Show build failure
         if: failure()
         run: |
+          echo "::group::style panic / bindgen error"
+          cat /tmp/nullsec-style-panic.txt || true
+          echo "::endgroup::"
+          echo "::group::stylo bindgen log"
+          tail -n 200 /tmp/nullsec-stylo-bindgen.log || true
+          echo "::endgroup::"
           echo "::group::last 400 lines of build.log"
           tail -n 400 build.log || true
           echo "::endgroup::"
