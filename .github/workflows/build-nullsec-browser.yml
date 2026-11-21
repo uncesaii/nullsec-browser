@@ -302,6 +302,7 @@ jobs:
           LLVM_MINGW: /home/runner/clang
           WINEPREFIX: /home/runner/.wine
           WINEDLLOVERRIDES: d3dcompiler_47=n
+          RUST_BACKTRACE: "1"
         run: |
           set -o pipefail
           xvfb-run -a ./mach build 2>&1 | tee ../build.log
