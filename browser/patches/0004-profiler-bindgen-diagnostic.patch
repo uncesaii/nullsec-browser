@@ -1,5 +1,5 @@
 diff --git a/tools/profiler/rust-api/build.rs b/tools/profiler/rust-api/build.rs
-index 7f9e2701..f97153c5 100644
+index 7f9e2701..c0f100cd 100644
 --- a/tools/profiler/rust-api/build.rs
 +++ b/tools/profiler/rust-api/build.rs
 @@ -106,7 +106,10 @@ fn generate_bindings() {
@@ -8,9 +8,19 @@ index 7f9e2701..f97153c5 100644
          // Unwrap the Result and panic on failure.
 -        .expect("Unable to generate bindings");
 +        .unwrap_or_else(|e| {
-+            println!("NULLSEC_BINDGEN_ERROR: {:#?}", e);
++            let _ = std::fs::write("/tmp/nullsec-profiler-panic.txt", format!("BINDGEN ERR: {:#?}", e));
 +            panic!("Unable to generate bindings");
 +        });
  
      let out_file = OUTDIR_PATH.join(BINDINGS_FILE);
      bindings
+@@ -115,6 +118,9 @@ fn generate_bindings() {
+ }
+ 
+ fn main() {
++    std::panic::set_hook(Box::new(|info| {
++        let _ = std::fs::write("/tmp/nullsec-profiler-panic.txt", format!("{}", info));
++    }));
+     println!("cargo:rerun-if-changed=build.rs");
+     println!("cargo:out_dir={}", env::var("OUT_DIR").unwrap());
+ 
