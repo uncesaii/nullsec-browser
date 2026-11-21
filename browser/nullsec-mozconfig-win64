@@ -25,11 +25,13 @@ ac_add_options --disable-update-agent
 ac_add_options --disable-default-browser-agent
 ac_add_options --disable-notification-server
 
+export HOST_CC=$HOME/clang/bin/clang
+export HOST_CXX=$HOME/clang/bin/clang++
 export CC=x86_64-w64-mingw32-clang
 export CXX=x86_64-w64-mingw32-clang++
 export AR=llvm-ar
 export RANLIB=llvm-ranlib
-export CFLAGS="-include _mingw.h"
+export CFLAGS="-fms-extensions -include _mingw.h"
 export CXXFLAGS="-fms-extensions -include _mingw.h"
 export BINDGEN_CFLAGS="--target=x86_64-w64-mingw32 -I$HOME/clang/x86_64-w64-mingw32/include -I$HOME/clang/x86_64-w64-mingw32/include/c++/v1"
 export BINDGEN_EXTRA_CLANG_ARGS="--target=x86_64-w64-mingw32"
