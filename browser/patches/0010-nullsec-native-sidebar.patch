@@ -72,10 +72,10 @@ index 00000000..f5f73c19
 \ No newline at end of file
 diff --git a/browser/components/nullsec/sidebar.css b/browser/components/nullsec/sidebar.css
 new file mode 100644
-index 00000000..12db9bd5
+index 00000000..36628e77
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.css
-@@ -0,0 +1,744 @@
+@@ -0,0 +1,748 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -571,9 +571,13 @@ index 00000000..12db9bd5
 +/* Traffic */
 +.ns-toolbar {
 +  display: grid;
-+  grid-template-columns: 1fr auto auto auto;
++  grid-template-columns: 1fr auto auto;
 +  gap: 6px;
 +  margin-bottom: 6px;
++}
++
++#traffic-filter {
++  grid-column: 1 / -1;
 +}
 +
 +.ns-traffic-status {
@@ -823,7 +827,7 @@ index 00000000..12db9bd5
 \ No newline at end of file
 diff --git a/browser/components/nullsec/sidebar.html b/browser/components/nullsec/sidebar.html
 new file mode 100644
-index 00000000..f54fbbb3
+index 00000000..4b54f0d0
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.html
 @@ -0,0 +1,248 @@
@@ -931,7 +935,7 @@ index 00000000..f54fbbb3
 +            <textarea
 +              id="chat-input"
 +              rows="2"
-+              placeholder="Ask NullSecΓÇª  (Enter to send, Shift+Enter for newline)"
++              placeholder="Ask NullSec...  (Enter to send, Shift+Enter for newline)"
 +            ></textarea>
 +            <div class="ns-composer-row">
 +              <button id="ai-settings-toggle" class="ns-mini-btn">
@@ -999,7 +1003,7 @@ index 00000000..f54fbbb3
 +            <input
 +              id="traffic-filter"
 +              class="ns-input"
-+              placeholder="Filter host, path, statusΓÇª"
++              placeholder="Filter host, path, status..."
 +            />
 +            <select id="traffic-method" class="ns-select">
 +              <option value="">All</option>
@@ -1038,7 +1042,7 @@ index 00000000..f54fbbb3
 +          <textarea
 +            id="notes-editor"
 +            class="ns-notes"
-+            placeholder="Notes for this target ΓÇö credentials, endpoints, payload ideas, flagsΓÇª"
++            placeholder="Notes for this target - credentials, endpoints, payload ideas, flags..."
 +          ></textarea>
 +          <div class="ns-row">
 +            <button id="notes-export" class="ns-btn ns-btn-ghost">
@@ -1078,16 +1082,10 @@ index 00000000..f54fbbb3
 \ No newline at end of file
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..0db86bc1
+index 00000000..0df5d67f
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
 @@ -0,0 +1,1190 @@
-+const { IOUtils } = ChromeUtils.importESModule(
-+  "resource://gre/modules/IOUtils.sys.mjs"
-+);
-+const { PathUtils } = ChromeUtils.importESModule(
-+  "resource://gre/modules/PathUtils.sys.mjs"
-+);
 +
 +const LOGIN_ORIGIN = "chrome://nullsec";
 +const LOGIN_REALM = "NullSec AI";
@@ -1781,7 +1779,7 @@ index 00000000..0db86bc1
 +
 +  const summary = document.createElement("div");
 +  summary.className = "ns-muted";
-+  summary.textContent = `${entry.status} ${entry.statusText || ""} ┬╖ ${entry.type || "unknown"} ┬╖ ${formatBytes(entry.size)}`;
++  summary.textContent = `${entry.status} ${entry.statusText || ""} - ${entry.type || "unknown"} - ${formatBytes(entry.size)}`;
 +  dom.trafficDetail.appendChild(summary);
 +
 +  const requestHeaders = document.createElement("div");
@@ -1831,7 +1829,7 @@ index 00000000..0db86bc1
 +  replay.textContent = "Replay";
 +  replay.addEventListener("click", async () => {
 +    replay.disabled = true;
-+    replay.textContent = "ReplayingΓÇª";
++    replay.textContent = "Replaying...";
 +    const output = document.createElement("div");
 +    output.className = "ns-detail-output";
 +    dom.trafficDetail.appendChild(output);
@@ -1853,7 +1851,7 @@ index 00000000..0db86bc1
 +      });
 +      const elapsed = Math.round(performance.now() - started);
 +      const text = await response.text();
-+      output.textContent = `${response.status} ${response.statusText} ┬╖ ${elapsed} ms\n\n${text.slice(0, 8000)}`;
++      output.textContent = `${response.status} ${response.statusText} - ${elapsed} ms\n\n${text.slice(0, 8000)}`;
 +    } catch (error) {
 +      output.textContent = `Replay failed: ${error.message}`;
 +    } finally {
@@ -1905,7 +1903,7 @@ index 00000000..0db86bc1
 +    empty.className = "ns-empty-inline";
 +    empty.textContent = state.traffic.length
 +      ? "No requests match this filter."
-+      : "Waiting for HTTP trafficΓÇª";
++      : "Waiting for HTTP traffic...";
 +    dom.trafficList.appendChild(empty);
 +  }
 +  for (const entry of entries) {
@@ -2051,7 +2049,7 @@ index 00000000..0db86bc1
 +  dom.aiKey.placeholder = key
 +    ? "stored in Firefox Logins (enter to replace)"
 +    : "stored in Firefox Logins";
-+  dom.aiModelLabel.textContent = `${cfg.provider} ┬╖ ${cfg.model}`;
++  dom.aiModelLabel.textContent = `${cfg.provider} - ${cfg.model}`;
 +}
 +
 +function saveSettingsFromUI() {
@@ -2072,7 +2070,7 @@ index 00000000..0db86bc1
 +    dom.aiKey.value = "";
 +  }
 +  dom.aiStatus.textContent = message;
-+  dom.aiModelLabel.textContent = `${provider} ┬╖ ${model}`;
++  dom.aiModelLabel.textContent = `${provider} - ${model}`;
 +  loadSettingsIntoUI();
 +}
 +
@@ -2255,6 +2253,12 @@ index 00000000..0db86bc1
 +      { once: true }
 +    );
 +  }
++  const contextTimer = setInterval(updateContext, 1500);
++  window.addEventListener(
++    "unload",
++    () => clearInterval(contextTimer),
++    { once: true }
++  );
 +  window.addEventListener("unload", stopTraffic, { once: true });
 +}
 +
