@@ -285,6 +285,7 @@ jobs:
         working-directory: src
         env:
           LLVM_MINGW: /home/runner/clang
+          LIBCLANG_PATH: /home/runner/clang/lib
         run: |
           set -eux
           cp ../browser/nullsec-mozconfig-win64 mozconfig
@@ -300,6 +301,7 @@ jobs:
         working-directory: src
         env:
           LLVM_MINGW: /home/runner/clang
+          LIBCLANG_PATH: /home/runner/clang/lib
           WINEPREFIX: /home/runner/.wine
           WINEDLLOVERRIDES: d3dcompiler_47=n
           RUST_BACKTRACE: "1"
