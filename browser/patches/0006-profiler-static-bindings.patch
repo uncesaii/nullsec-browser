@@ -1,0 +1,389 @@
+diff --git a/tools/profiler/rust-api/build.rs b/tools/profiler/rust-api/build.rs
+index 7f9e270..7fecb92 100644
+--- a/tools/profiler/rust-api/build.rs
++++ b/tools/profiler/rust-api/build.rs
+@@ -55,65 +55,333 @@ fn add_include(name: &str) -> String {
+     file_path
+ }
+ 
+-fn generate_bindings() {
+-    let mut builder = Builder::default()
+-        .enable_cxx_namespaces()
+-        .with_codegen_config(CodegenConfig::TYPES | CodegenConfig::VARS | CodegenConfig::FUNCTIONS)
+-        .disable_untagged_union()
+-        .size_t_is_usize(true);
+-
+-    for dir in SEARCH_PATHS.iter() {
+-        builder = builder.clang_arg("-I").clang_arg(dir.to_str().unwrap());
++const BINDINGS_CONTENT: &str = r#"#[allow(non_snake_case, non_camel_case_types, non_upper_case_globals, unused)]
++pub mod root {
++    #[allow(unused_imports)]
++    use self::super::root;
++
++    #[repr(u32)]
++    #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
++    pub enum ThreadProfilingFeatures {
++        NotProfiled = 0,
++        CPUUtilization = 1,
++        Sampling = 2,
++        Markers = 4,
++        Any = 7,
+     }
+ 
+-    builder = builder
+-        .clang_arg("-include")
+-        .clang_arg(add_include("mozilla-config.h"));
++    pub mod mozilla {
++        #[allow(unused_imports)]
++        use self::super::super::root;
++
++        #[repr(C)]
++        #[derive(Debug, Copy, Clone)]
++        pub struct AutoProfilerLabel {
++            pub mProfilingStack: *mut std::os::raw::c_void,
++        }
++
++        #[repr(C)]
++        #[derive(Debug)]
++        pub struct MarkerSchema {
++            _unused: [u8; 0],
++        }
++
++        #[repr(C)]
++        #[derive(Debug, Copy, Clone)]
++        pub struct TimeStamp {
++            pub mValue: u64,
++        }
++
++        #[repr(C)]
++        #[derive(Debug, Copy, Clone)]
++        pub struct MarkerTiming {
++            pub mStartTime: TimeStamp,
++            pub mEndTime: TimeStamp,
++            pub mPhase: u8,
++            pub _padding: [u8; 7],
++        }
++
++        #[repr(u32)]
++        #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
++        pub enum StackCaptureOptions {
++            NoStack = 0,
++            Full = 1,
++            NonNative = 2,
++        }
++
++        #[repr(u32)]
++        #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
++        pub enum MarkerSchema_Location {
++            MarkerChart = 0,
++            MarkerTable = 1,
++            TimelineOverview = 2,
++            TimelineMemory = 3,
++            TimelineIPC = 4,
++            TimelineFileIO = 5,
++            StackChart = 6,
++        }
++
++        #[repr(u32)]
++        #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
++        pub enum MarkerSchema_Format {
++            Url = 0,
++            FilePath = 1,
++            SanitizedString = 2,
++            String = 3,
++            UniqueString = 4,
++            Duration = 5,
++            Time = 6,
++            Seconds = 7,
++            Milliseconds = 8,
++            Microseconds = 9,
++            Nanoseconds = 10,
++            Bytes = 11,
++            Percentage = 12,
++            Integer = 13,
++            Decimal = 14,
++            Flow = 15,
++            TerminatingFlow = 16,
++        }
++
++        #[repr(u32)]
++        #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
++        pub enum MarkerSchema_PayloadFlags {
++            None = 0,
++            Hidden = 1,
++        }
++
++        pub mod baseprofiler {
++            #[allow(unused_imports)]
++            use self::super::super::super::root;
++
++            #[repr(C)]
++            #[derive(Debug)]
++            pub struct SpliceableJSONWriter {
++                _unused: [u8; 0],
++            }
++
++            pub type ProfilingCategoryPair = u32;
++        }
++
++        pub mod profiler {
++            #[allow(unused_imports)]
++            use self::super::super::super::root;
+ 
+-    for item in &*BINDGEN_FLAGS {
+-        builder = builder.clang_arg(item);
++            pub mod detail {
++                #[allow(unused_imports)]
++                use self::super::super::super::super::root;
++
++                pub const RacyFeatures_Active: u32 = 1 << 31;
++                pub const RacyFeatures_Paused: u32 = 1 << 30;
++                pub const RacyFeatures_SamplingPaused: u32 = 1 << 29;
++                pub const RacyFeatures_ETWCollectionEnabled: u32 = 1 << 28;
++                pub const RacyFeatures_PerfettoTracingEnabled: u32 = 1 << 27;
++
++                extern "C" {
++                    #[link_name = "\u{1}_ZN7mozilla8profiler6detail12RacyFeatures18sActiveAndFeaturesE"]
++                    pub static mut RacyFeatures_sActiveAndFeatures: u32;
++                }
++            }
++        }
+     }
+ 
+-    let bindings = builder
+-        .header(add_include("GeckoProfiler.h"))
+-        .header(add_include("ProfilerBindings.h"))
+-        .allowlist_function("gecko_profiler_.*")
+-        .allowlist_var("mozilla::profiler::detail::RacyFeatures::sActiveAndFeatures")
+-        .allowlist_type("mozilla::profiler::detail::RacyFeatures")
+-        .allowlist_item("ThreadProfilingFeatures")
+-        .rustified_enum("ThreadProfilingFeatures")
+-        .rustified_enum("mozilla::StackCaptureOptions")
+-        .rustified_enum("mozilla::MarkerSchema_Location")
+-        .rustified_enum("mozilla::MarkerSchema_Format")
+-        .rustified_enum("mozilla::MarkerSchema_PayloadFlags")
+-        // Converting std::string to an opaque type makes some platforms build
+-        // successfully. Otherwise, it fails to build because MarkerSchema has
+-        // some std::strings as its fields.
+-        .opaque_type("std::string")
+-        .opaque_type("std::unique_ptr")
+-        .opaque_type("mozilla::Maybe")
+-        .opaque_type("mozilla::MallocAllocPolicy")
+-        .opaque_type("mozilla::Variant")
+-        .opaque_type("mozilla::baseprofiler::UniqueJSONStrings")
+-        // std::vector needs to be converted to an opaque type because, if it's
+-        // not an opaque type, bindgen can't find its size properly and
+-        // MarkerSchema's total size reduces. That causes a heap buffer overflow.
+-        .opaque_type("std::vector.*")
+-        .raw_line("pub use self::root::*;")
+-        // Tell cargo to invalidate the built crate whenever any of the
+-        // included header files changed.
+-        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+-        // Finish the builder and generate the bindings.
+-        .generate()
+-        // Unwrap the Result and panic on failure.
+-        .expect("Unable to generate bindings");
++    extern "C" {
++        pub fn gecko_profiler_register_thread(name: *const std::os::raw::c_char);
++        pub fn gecko_profiler_unregister_thread();
++        pub fn gecko_profiler_current_thread_is_registered(
++            features: ThreadProfilingFeatures,
++        ) -> bool;
++        pub fn gecko_profiler_construct_label(
++            label: *mut mozilla::AutoProfilerLabel,
++            category: u32,
++        );
++        pub fn gecko_profiler_destruct_label(label: *mut mozilla::AutoProfilerLabel);
++        pub fn gecko_profiler_construct_timestamp_now(time: *mut mozilla::TimeStamp);
++        pub fn gecko_profiler_clone_timestamp(
++            src: *const mozilla::TimeStamp,
++            dst: *mut mozilla::TimeStamp,
++        );
++        pub fn gecko_profiler_destruct_timestamp(time: *mut mozilla::TimeStamp);
++        pub fn gecko_profiler_add_timestamp(
++            src: *const mozilla::TimeStamp,
++            dst: *mut mozilla::TimeStamp,
++            us: f64,
++        );
++        pub fn gecko_profiler_subtract_timestamp(
++            src: *const mozilla::TimeStamp,
++            dst: *mut mozilla::TimeStamp,
++            us: f64,
++        );
++        pub fn gecko_profiler_construct_marker_timing_instant_at(
++            timing: *mut mozilla::MarkerTiming,
++            time: *const mozilla::TimeStamp,
++        );
++        pub fn gecko_profiler_construct_marker_timing_instant_now(
++            timing: *mut mozilla::MarkerTiming,
++        );
++        pub fn gecko_profiler_construct_marker_timing_interval(
++            timing: *mut mozilla::MarkerTiming,
++            start: *const mozilla::TimeStamp,
++            end: *const mozilla::TimeStamp,
++        );
++        pub fn gecko_profiler_construct_marker_timing_interval_until_now_from(
++            timing: *mut mozilla::MarkerTiming,
++            start: *const mozilla::TimeStamp,
++        );
++        pub fn gecko_profiler_construct_marker_timing_interval_start(
++            timing: *mut mozilla::MarkerTiming,
++            time: *const mozilla::TimeStamp,
++        );
++        pub fn gecko_profiler_construct_marker_timing_interval_end(
++            timing: *mut mozilla::MarkerTiming,
++            time: *const mozilla::TimeStamp,
++        );
++        pub fn gecko_profiler_destruct_marker_timing(timing: *mut mozilla::MarkerTiming);
++        pub fn gecko_profiler_construct_marker_schema(
++            loc: *const mozilla::MarkerSchema_Location,
++            len: usize,
++        ) -> *mut mozilla::MarkerSchema;
++        pub fn gecko_profiler_construct_marker_schema_with_special_front_end_location() -> *mut mozilla::MarkerSchema;
++        pub fn gecko_profiler_destruct_marker_schema(schema: *mut mozilla::MarkerSchema);
++        pub fn gecko_profiler_marker_schema_set_chart_label(
++            schema: *mut mozilla::MarkerSchema,
++            label: *const std::os::raw::c_char,
++            len: usize,
++        );
++        pub fn gecko_profiler_marker_schema_set_tooltip_label(
++            schema: *mut mozilla::MarkerSchema,
++            label: *const std::os::raw::c_char,
++            len: usize,
++        );
++        pub fn gecko_profiler_marker_schema_set_table_label(
++            schema: *mut mozilla::MarkerSchema,
++            label: *const std::os::raw::c_char,
++            len: usize,
++        );
++        pub fn gecko_profiler_marker_schema_set_all_labels(
++            schema: *mut mozilla::MarkerSchema,
++            label: *const std::os::raw::c_char,
++            len: usize,
++        );
++        pub fn gecko_profiler_marker_schema_set_stack_based(
++            schema: *mut mozilla::MarkerSchema,
++        );
++        pub fn gecko_profiler_marker_schema_add_key_format(
++            schema: *mut mozilla::MarkerSchema,
++            key: *const std::os::raw::c_char,
++            key_len: usize,
++            format: mozilla::MarkerSchema_Format,
++        );
++        pub fn gecko_profiler_marker_schema_add_key_label_format(
++            schema: *mut mozilla::MarkerSchema,
++            key: *const std::os::raw::c_char,
++            key_len: usize,
++            label: *const std::os::raw::c_char,
++            label_len: usize,
++            format: mozilla::MarkerSchema_Format,
++        );
++        pub fn gecko_profiler_marker_schema_add_key_format_with_flags(
++            schema: *mut mozilla::MarkerSchema,
++            key: *const std::os::raw::c_char,
++            key_len: usize,
++            format: mozilla::MarkerSchema_Format,
++            flags: mozilla::MarkerSchema_PayloadFlags,
++        );
++        pub fn gecko_profiler_marker_schema_add_key_label_format_with_flags(
++            schema: *mut mozilla::MarkerSchema,
++            key: *const std::os::raw::c_char,
++            key_len: usize,
++            label: *const std::os::raw::c_char,
++            label_len: usize,
++            format: mozilla::MarkerSchema_Format,
++            flags: mozilla::MarkerSchema_PayloadFlags,
++        );
++        pub fn gecko_profiler_marker_schema_add_static_label_value(
++            schema: *mut mozilla::MarkerSchema,
++            label: *const std::os::raw::c_char,
++            label_len: usize,
++            val: *const std::os::raw::c_char,
++            val_len: usize,
++        );
++        pub fn gecko_profiler_marker_schema_stream(
++            writer: *mut mozilla::baseprofiler::SpliceableJSONWriter,
++            name: *const std::os::raw::c_char,
++            name_len: usize,
++            schema: *mut mozilla::MarkerSchema,
++            set: *mut std::os::raw::c_void,
++        );
++        pub fn gecko_profiler_json_writer_int_property(
++            writer: *mut mozilla::baseprofiler::SpliceableJSONWriter,
++            name: *const std::os::raw::c_char,
++            len: usize,
++            val: i64,
++        );
++        pub fn gecko_profiler_json_writer_float_property(
++            writer: *mut mozilla::baseprofiler::SpliceableJSONWriter,
++            name: *const std::os::raw::c_char,
++            len: usize,
++            val: f64,
++        );
++        pub fn gecko_profiler_json_writer_bool_property(
++            writer: *mut mozilla::baseprofiler::SpliceableJSONWriter,
++            name: *const std::os::raw::c_char,
++            len: usize,
++            val: bool,
++        );
++        pub fn gecko_profiler_json_writer_string_property(
++            writer: *mut mozilla::baseprofiler::SpliceableJSONWriter,
++            name: *const std::os::raw::c_char,
++            len: usize,
++            val: *const std::os::raw::c_char,
++            val_len: usize,
++        );
++        pub fn gecko_profiler_json_writer_unique_string_property(
++            writer: *mut mozilla::baseprofiler::SpliceableJSONWriter,
++            name: *const std::os::raw::c_char,
++            len: usize,
++            val: *const std::os::raw::c_char,
++            val_len: usize,
++        );
++        pub fn gecko_profiler_json_writer_null_property(
++            writer: *mut mozilla::baseprofiler::SpliceableJSONWriter,
++            name: *const std::os::raw::c_char,
++            len: usize,
++        );
++        pub fn gecko_profiler_add_marker_untyped(
++            name: *const std::os::raw::c_char,
++            len: usize,
++            cat: u32,
++            timing: *mut mozilla::MarkerTiming,
++            stack: mozilla::StackCaptureOptions,
++        );
++        pub fn gecko_profiler_add_marker_text(
++            name: *const std::os::raw::c_char,
++            len: usize,
++            cat: u32,
++            timing: *mut mozilla::MarkerTiming,
++            stack: mozilla::StackCaptureOptions,
++            text: *const std::os::raw::c_char,
++            text_len: usize,
++        );
++        pub fn gecko_profiler_add_marker(
++            name: *const std::os::raw::c_char,
++            len: usize,
++            cat: u32,
++            timing: *mut mozilla::MarkerTiming,
++            stack: mozilla::StackCaptureOptions,
++            tag: u8,
++            payload: *const u8,
++            payload_size: usize,
++        );
++    }
++}
++pub use self::root::*;
++"#;
+ 
++fn generate_bindings() {
+     let out_file = OUTDIR_PATH.join(BINDINGS_FILE);
+-    bindings
+-        .write_to_file(out_file)
+-        .expect("Couldn't write bindings!");
++    fs::write(out_file, BINDINGS_CONTENT).expect("Couldn't write bindings!");
+ }
+-
+ fn main() {
+     println!("cargo:rerun-if-changed=build.rs");
+     println!("cargo:out_dir={}", env::var("OUT_DIR").unwrap());
