@@ -1,8 +1,189 @@
+diff --git a/browser/actors/NullSecChild.sys.mjs b/browser/actors/NullSecChild.sys.mjs
+new file mode 100644
+index 00000000..6e2772a0
+--- /dev/null
++++ b/browser/actors/NullSecChild.sys.mjs
+@@ -0,0 +1,147 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++const MAX_TEXT = 12000;
++const MAX_CONTROLS = 150;
++
++export class NullSecChild extends JSWindowActorChild {
++  receiveMessage(message) {
++    switch (message.name) {
++      case "NullSec:read":
++        return this.readPage();
++      case "NullSec:click":
++        return this.click(message.data?.selector);
++      case "NullSec:type":
++        return this.typeInto(message.data || {});
++      case "NullSec:scroll":
++        return this.scroll(message.data || {});
++      default:
++        return null;
++    }
++  }
++
++  selectorFor(element) {
++    if (!element || element.nodeType !== 1) {
++      return "";
++    }
++    if (element.id) {
++      return `#${CSS.escape(element.id)}`;
++    }
++    const name = element.getAttribute("name");
++    if (name) {
++      const selector = `${element.tagName.toLowerCase()}[name="${CSS.escape(
++        name
++      )}"]`;
++      if (this.document.querySelectorAll(selector).length === 1) {
++        return selector;
++      }
++    }
++    const parts = [];
++    let node = element;
++    while (node && node.nodeType === 1 && parts.length < 6) {
++      if (node.id) {
++        parts.unshift(`#${CSS.escape(node.id)}`);
++        break;
++      }
++      let part = node.tagName.toLowerCase();
++      const parent = node.parentElement;
++      if (parent) {
++        const siblings = [...parent.children].filter(
++          child => child.tagName === node.tagName
++        );
++        if (siblings.length > 1) {
++          part += `:nth-of-type(${siblings.indexOf(node) + 1})`;
++        }
++      }
++      parts.unshift(part);
++      node = parent;
++    }
++    return parts.join(" > ");
++  }
++
++  describe(element) {
++    return {
++      tag: element.tagName.toLowerCase(),
++      type: element.getAttribute("type") || "",
++      name: element.getAttribute("name") || "",
++      label:
++        element.getAttribute("aria-label") ||
++        element.getAttribute("placeholder") ||
++        "",
++      text: String(element.innerText || element.value || "")
++        .replace(/\s+/g, " ")
++        .trim()
++        .slice(0, 80),
++      selector: this.selectorFor(element),
++    };
++  }
++
++  readPage() {
++    const doc = this.document;
++    const text = String(doc.body?.innerText || "")
++      .replace(/\n{3,}/g, "\n\n")
++      .slice(0, MAX_TEXT);
++    const controls = [];
++    for (const element of doc.querySelectorAll(
++      "a,button,input,textarea,select,[role=button]"
++    )) {
++      if (controls.length >= MAX_CONTROLS) {
++        break;
++      }
++      controls.push(this.describe(element));
++    }
++    return {
++      url: doc.location.href,
++      title: doc.title,
++      text,
++      controls,
++    };
++  }
++
++  click(selector) {
++    if (!selector) {
++      return { ok: false, error: "missing selector" };
++    }
++    const element = this.document.querySelector(selector);
++    if (!element) {
++      return { ok: false, error: `no element for ${selector}` };
++    }
++    element.scrollIntoView({ block: "center", inline: "center" });
++    element.click();
++    return { ok: true, clicked: this.describe(element) };
++  }
++
++  typeInto({ selector, text, submit }) {
++    if (!selector) {
++      return { ok: false, error: "missing selector" };
++    }
++    const element = this.document.querySelector(selector);
++    if (!element) {
++      return { ok: false, error: `no element for ${selector}` };
++    }
++    element.focus();
++    element.value = String(text ?? "");
++    const view = this.contentWindow;
++    element.dispatchEvent(new view.Event("input", { bubbles: true }));
++    element.dispatchEvent(new view.Event("change", { bubbles: true }));
++    if (submit !== false && element.form) {
++      if (element.form.requestSubmit) {
++        element.form.requestSubmit();
++      } else {
++        element.form.submit();
++      }
++    }
++    return { ok: true, typed: this.describe(element) };
++  }
++
++  scroll({ y }) {
++    const amount = Number.isFinite(y) ? y : 600;
++    this.contentWindow.scrollBy({ top: amount, behavior: "auto" });
++    return {
++      ok: true,
++      scrollY: this.contentWindow.scrollY,
++      height: this.document.documentElement.scrollHeight,
++    };
++  }
++}
+diff --git a/browser/actors/NullSecParent.sys.mjs b/browser/actors/NullSecParent.sys.mjs
+new file mode 100644
+index 00000000..2a2301ae
+--- /dev/null
++++ b/browser/actors/NullSecParent.sys.mjs
+@@ -0,0 +1,9 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++export class NullSecParent extends JSWindowActorParent {
++  receiveMessage() {
++    return null;
++  }
++}
+diff --git a/browser/actors/moz.build b/browser/actors/moz.build
+index 2b957018..dd2dee24 100644
+--- a/browser/actors/moz.build
++++ b/browser/actors/moz.build
+@@ -120,6 +120,8 @@ FINAL_TARGET_FILES.actors += [
+     "LightweightThemeChild.sys.mjs",
+     "LinkHandlerChild.sys.mjs",
+     "LinkHandlerParent.sys.mjs",
++    "NullSecChild.sys.mjs",
++    "NullSecParent.sys.mjs",
+     "PageInfoChild.sys.mjs",
+     "PageInfoPreviewChild.sys.mjs",
+     "PageStyleChild.sys.mjs",
 diff --git a/browser/app/profile/000-mullvad-browser.js b/browser/app/profile/000-mullvad-browser.js
-index 3636c5d0..f8e0ff06 100644
+index 3636c5d0..a742e58a 100644
 --- a/browser/app/profile/000-mullvad-browser.js
 +++ b/browser/app/profile/000-mullvad-browser.js
-@@ -56,3 +56,13 @@ pref("browser.selectiveSavingMode.enabled", false);
+@@ -56,3 +56,15 @@ pref("browser.selectiveSavingMode.enabled", false);
  #else
  pref("browser.selectiveSavingMode.enabled", true);
  #endif
@@ -16,6 +197,29 @@ index 3636c5d0..f8e0ff06 100644
 +pref("browser.nullsec.ai.model", "gpt-4o-mini");
 +pref("browser.nullsec.ai.temperature", "0.3");
 +pref("browser.nullsec.ai.system", "");
++pref("browser.nullsec.ai.autopilot", false);
++pref("browser.nullsec.ai.pageContext", true);
+diff --git a/browser/components/DesktopActorRegistry.sys.mjs b/browser/components/DesktopActorRegistry.sys.mjs
+index 7266cae6..83d9dd17 100644
+--- a/browser/components/DesktopActorRegistry.sys.mjs
++++ b/browser/components/DesktopActorRegistry.sys.mjs
+@@ -125,6 +125,16 @@ let JSWINDOWACTORS = {
+     matches: ["about:mullvad-browser"],
+   },
+ 
++  NullSec: {
++    parent: {
++      esModuleURI: "resource:///actors/NullSecParent.sys.mjs",
++    },
++    child: {
++      esModuleURI: "resource:///actors/NullSecChild.sys.mjs",
++    },
++    matches: ["http://*/*", "https://*/*"],
++  },
++
+   AboutPrivateBrowsing: {
+     parent: {
+       esModuleURI: "resource:///actors/AboutPrivateBrowsingParent.sys.mjs",
 diff --git a/browser/components/moz.build b/browser/components/moz.build
 index 7c5e6323..14c7662c 100644
 --- a/browser/components/moz.build
@@ -72,10 +276,10 @@ index 00000000..f5f73c19
 \ No newline at end of file
 diff --git a/browser/components/nullsec/sidebar.css b/browser/components/nullsec/sidebar.css
 new file mode 100644
-index 00000000..36628e77
+index 00000000..f7c2187d
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.css
-@@ -0,0 +1,748 @@
+@@ -0,0 +1,793 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -824,13 +1028,58 @@ index 00000000..36628e77
 +  text-align: center;
 +  padding: 18px 8px;
 +}
++
++.ns-check {
++  display: flex;
++  align-items: center;
++  gap: 8px;
++  font-size: 12px;
++  color: var(--ns-text, currentColor);
++  padding: 4px 2px;
++}
++
++.ns-check input {
++  accent-color: var(--ns-accent, #41f1b6);
++}
++
++.ns-step {
++  align-self: flex-start;
++  max-width: 100%;
++  margin: 2px 0;
++  padding: 4px 10px;
++  border-radius: 999px;
++  background: color-mix(in srgb, currentColor 8%, transparent);
++  font-size: 11px;
++  opacity: 0.85;
++  white-space: pre-wrap;
++  word-break: break-word;
++}
++
++.ns-report {
++  margin: 0 0 8px;
++  padding: 10px;
++  border-radius: 8px;
++  background: color-mix(in srgb, currentColor 6%, transparent);
++  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
++  font-size: 11px;
++  line-height: 1.5;
++  white-space: pre-wrap;
++  word-break: break-word;
++  max-height: 420px;
++  overflow: auto;
++}
++
++.ns-report-actions {
++  display: flex;
++  gap: 8px;
++}
 \ No newline at end of file
 diff --git a/browser/components/nullsec/sidebar.html b/browser/components/nullsec/sidebar.html
 new file mode 100644
-index 00000000..0f37c5f3
+index 00000000..25e713c8
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.html
-@@ -0,0 +1,248 @@
+@@ -0,0 +1,263 @@
 +<!-- This Source Code Form is subject to the terms of the Mozilla Public
 +   - License, v. 2.0. If a copy of the MPL was not distributed with this
 +   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
@@ -927,6 +1176,13 @@ index 00000000..0f37c5f3
 +                >
 +                  CTF checklist
 +                </button>
++                <button
++                  id="chip-report"
++                  class="ns-chip"
++                  data-prompt="Produce a professional flag report for this engagement: targets, scopes, flags, evidence, and next steps."
++                >
++                  Flag report
++                </button>
 +              </div>
 +            </div>
 +          </div>
@@ -987,6 +1243,14 @@ index 00000000..0f37c5f3
 +                max="2"
 +                step="0.1"
 +              />
++            </label>
++            <label class="ns-check">
++              <input id="ai-autopilot" type="checkbox" />
++              <span>Autopilot - let NullSec operate the browser</span>
++            </label>
++            <label class="ns-check">
++              <input id="ai-page-context" type="checkbox" />
++              <span>Include page content and controls in every request</span>
 +            </label>
 +            <div class="ns-row">
 +              <button id="ai-save" class="ns-btn ns-btn-primary">Save</button>
@@ -1082,10 +1346,10 @@ index 00000000..0f37c5f3
 \ No newline at end of file
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..7c5792ad
+index 00000000..d473fe8c
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
-@@ -0,0 +1,1215 @@
+@@ -0,0 +1,1621 @@
 +
 +const KEY_PREF_PREFIX = "browser.nullsec.ai.key.";
 +const KEY_LABEL_PREFIX = "nullsec-ai-key-";
@@ -1098,12 +1362,26 @@ index 00000000..7c5792ad
 +  model: "browser.nullsec.ai.model",
 +  temperature: "browser.nullsec.ai.temperature",
 +  system: "browser.nullsec.ai.system",
++  autopilot: "browser.nullsec.ai.autopilot",
++  pageContext: "browser.nullsec.ai.pageContext",
 +};
++
++const MAX_STEPS = 12;
++
++const AGENT_PROTOCOL = [
++  "You are driving a live browser. You act by replying with a single JSON object and nothing else.",
++  'To act, reply: {"thought":"short reason","action":{"type":"click|type|scroll|navigate|back|forward|read","selector":"<css selector from the provided controls>","text":"value","submit":true,"url":"https://...","y":600}}',
++  'When you are done, reply: {"thought":"short reason","answer":"final markdown answer"}',
++  "Only use selectors listed in INTERACTIVE ELEMENTS. Prefer clicking links and submitting forms over guessing URLs.",
++  "After each action you will receive the resulting page text and controls. Keep going until the objective is met or you are blocked.",
++  "Never leave the engagement scope; if a step needs authorization or is ambiguous, stop and ask.",
++].join("\n");
 +
 +const DEFAULT_SYSTEM = [
 +  "You are NullSec, an offensive-security copilot embedded in a browser for authorized CTF competitions and penetration tests.",
 +  "Be concise, technical, and practical. Prefer concrete commands, payloads, and next requests over theory.",
 +  "When shown an HTTP exchange, inspect auth, cookies, parameters, headers, uploads, redirects, and likely vulnerability classes (IDOR, SSRF, SQLi, XSS, auth bypass, path traversal, deserialization, race conditions).",
++  "You can read the active page and, when Autopilot is enabled, operate the browser yourself: navigate, click, type, and scroll. Keep working until the objective is reached, then report findings and flags in a clean, professional format.",
 +  "Do not help with real-world unauthorized attacks. If scope is unclear, ask for confirmation.",
 +].join(" ");
 +
@@ -1355,7 +1633,7 @@ index 00000000..7c5792ad
 +  return state.data.targets.find(t => t.id === state.selectedTargetId) || null;
 +}
 +
-+function buildSystemPrompt() {
++function buildSystemPrompt(agent = false) {
 +  const cfg = getProviderConfig();
 +  const tab = getActiveTabInfo();
 +  const target = getSelectedTarget();
@@ -1365,6 +1643,9 @@ index 00000000..7c5792ad
 +  }
 +  if (target) {
 +    prompt += `\n\n[Selected target]\nName: ${target.name}\nScope: ${target.scope || "unspecified"}`;
++  }
++  if (agent) {
++    prompt += `\n\n${AGENT_PROTOCOL}`;
 +  }
 +  return prompt;
 +}
@@ -1628,7 +1909,7 @@ index 00000000..7c5792ad
 +  }
 +}
 +
-+async function streamOpenAI({ cfg, key, messages, signal, onToken }) {
++async function streamOpenAI({ cfg, key, messages, signal, onToken, system }) {
 +  const response = await fetch(apiUrl(cfg.baseurl, "/chat/completions"), {
 +    method: "POST",
 +    signal,
@@ -1640,7 +1921,10 @@ index 00000000..7c5792ad
 +      model: cfg.model,
 +      stream: true,
 +      temperature: Number(cfg.temperature) || 0,
-+      messages: [{ role: "system", content: buildSystemPrompt() }, ...messages],
++      messages: [
++        { role: "system", content: system ?? buildSystemPrompt() },
++        ...messages,
++      ],
 +    }),
 +  });
 +  if (!response.ok) {
@@ -1660,7 +1944,7 @@ index 00000000..7c5792ad
 +  });
 +}
 +
-+async function streamAnthropic({ cfg, key, messages, signal, onToken }) {
++async function streamAnthropic({ cfg, key, messages, signal, onToken, system }) {
 +  const response = await fetch(anthropicUrl(cfg.baseurl), {
 +    method: "POST",
 +    signal,
@@ -1675,7 +1959,7 @@ index 00000000..7c5792ad
 +      max_tokens: 4096,
 +      stream: true,
 +      temperature: Number(cfg.temperature) || 0,
-+      system: buildSystemPrompt(),
++      system: system ?? buildSystemPrompt(),
 +      messages,
 +    }),
 +  });
@@ -1698,6 +1982,9 @@ index 00000000..7c5792ad
 +  if (!trimmed || state.streaming) {
 +    return;
 +  }
++  if (getBoolPref(PREF.autopilot, false)) {
++    return runAgent(trimmed);
++  }
 +  const cfg = getProviderConfig();
 +  const key = getKey(cfg.provider);
 +  if (!key && cfg.provider !== "compatible") {
@@ -1707,7 +1994,27 @@ index 00000000..7c5792ad
 +  }
 +  dom.aiSettings.hidden = true;
 +
-+  state.messages.push({ role: "user", content: trimmed });
++  let userContent = trimmed;
++  if (getBoolPref(PREF.pageContext, true)) {
++    const page = await collectPageContext();
++    if (page) {
++      userContent = [
++        trimmed,
++        "",
++        "[Page context]",
++        `URL: ${page.url}`,
++        `TITLE: ${page.title}`,
++        "",
++        "VISIBLE TEXT:",
++        page.text,
++        "",
++        "INTERACTIVE ELEMENTS:",
++        JSON.stringify(page.controls),
++      ].join("\n");
++    }
++  }
++
++  state.messages.push({ role: "user", content: userContent });
 +  addMessageElement({ role: "user", content: trimmed });
 +  dom.chatInput.value = "";
 +
@@ -1749,6 +2056,352 @@ index 00000000..7c5792ad
 +    state.abortController = null;
 +    scrollChat();
 +  }
++}
++
++function getBoolPref(name, fallback) {
++  try {
++    return Services.prefs.getBoolPref(name, fallback);
++  } catch {
++    return fallback;
++  }
++}
++
++function sleep(ms) {
++  return new Promise(resolve => setTimeout(resolve, ms));
++}
++
++function pageActor() {
++  const win = getBrowserWindow();
++  const browsingContext = win?.gBrowser?.selectedBrowser?.browsingContext;
++  const global = browsingContext?.currentWindowGlobal;
++  if (!global) {
++    return null;
++  }
++  try {
++    return global.getActor("NullSec") || null;
++  } catch {
++    return null;
++  }
++}
++
++async function collectPageContext() {
++  for (let attempt = 0; attempt < 3; attempt++) {
++    const actor = pageActor();
++    if (actor) {
++      try {
++        return await actor.sendQuery("NullSec:read");
++      } catch {}
++    }
++    await sleep(700);
++  }
++  return null;
++}
++
++async function executeAction(action) {
++  const win = getBrowserWindow();
++  const browser = win?.gBrowser?.selectedBrowser;
++  if (!action || !browser) {
++    return { ok: false, error: "no active tab" };
++  }
++  const principal = Services.scriptSecurityManager.getSystemPrincipal();
++  switch (action.type) {
++    case "navigate":
++      browser.loadURI(Services.io.newURI(action.url), {
++        triggeringPrincipal: principal,
++      });
++      return { ok: true, navigated: action.url };
++    case "back":
++      win.gBrowser.goBack();
++      return { ok: true };
++    case "forward":
++      win.gBrowser.goForward();
++      return { ok: true };
++    case "read":
++      return { ok: true };
++    case "click":
++    case "type":
++    case "scroll": {
++      const actor = pageActor();
++      if (!actor) {
++        return { ok: false, error: "page actor unavailable" };
++      }
++      if (action.type === "click") {
++        return actor.sendQuery("NullSec:click", {
++          selector: action.selector,
++        });
++      }
++      if (action.type === "type") {
++        return actor.sendQuery("NullSec:type", {
++          selector: action.selector,
++          text: action.text,
++          submit: action.submit,
++        });
++      }
++      return actor.sendQuery("NullSec:scroll", { y: action.y });
++    }
++    default:
++      return { ok: false, error: `unknown action: ${action.type}` };
++  }
++}
++
++function extractJson(text) {
++  const source = String(text);
++  const candidates = [];
++  const fence = source.match(/```(?:json)?\s*([\s\S]*?)```/i);
++  if (fence) {
++    candidates.push(fence[1]);
++  }
++  const start = source.indexOf("{");
++  const end = source.lastIndexOf("}");
++  if (start >= 0 && end > start) {
++    candidates.push(source.slice(start, end + 1));
++  }
++  for (const candidate of candidates) {
++    try {
++      const parsed = JSON.parse(candidate);
++      if (parsed && typeof parsed === "object") {
++        return parsed;
++      }
++    } catch {}
++  }
++  return null;
++}
++
++function describeAction(action) {
++  switch (action.type) {
++    case "click":
++      return `Clicking ${action.selector}`;
++    case "type":
++      return `Typing into ${action.selector}`;
++    case "navigate":
++      return `Navigating to ${action.url}`;
++    case "scroll":
++      return `Scrolling by ${action.y || 600}px`;
++    case "back":
++      return "Going back";
++    case "forward":
++      return "Going forward";
++    case "read":
++      return "Reading the page";
++    default:
++      return `Action: ${action.type}`;
++  }
++}
++
++function addStepElement(text) {
++  dom.chatEmpty.hidden = true;
++  const node = document.createElement("div");
++  node.className = "ns-step";
++  node.textContent = text;
++  dom.chatMessages.appendChild(node);
++  scrollChat();
++}
++
++async function completeChat({ cfg, key, messages, signal, system }) {
++  let output = "";
++  const args = {
++    cfg,
++    key,
++    messages,
++    signal,
++    system,
++    onToken: token => {
++      output += token;
++    },
++  };
++  if (cfg.provider === "anthropic") {
++    await streamAnthropic(args);
++  } else {
++    await streamOpenAI(args);
++  }
++  return output;
++}
++
++async function runAgent(text) {
++  const cfg = getProviderConfig();
++  const key = getKey(cfg.provider);
++  if (!key && cfg.provider !== "compatible") {
++    dom.aiSettings.hidden = false;
++    dom.aiStatus.textContent = "Add an API key for this provider.";
++    return;
++  }
++  dom.aiSettings.hidden = true;
++
++  state.messages.push({ role: "user", content: text.trim() });
++  addMessageElement({ role: "user", content: text.trim() });
++  dom.chatInput.value = "";
++
++  const assistant = { role: "assistant", content: "" };
++  const body = addMessageElement(assistant, true);
++  body.textContent = "Working...";
++  state.abortController = new AbortController();
++  const signal = state.abortController.signal;
++  setStreaming(true);
++  const system = buildSystemPrompt(true);
++
++  try {
++    const history = state.messages.slice(-24);
++    let observation = null;
++    let finished = false;
++    for (let step = 1; step <= MAX_STEPS && !finished; step++) {
++      const messages = observation
++        ? [...history, { role: "user", content: observation }]
++        : history;
++      const raw = await completeChat({ cfg, key, messages, signal, system });
++      const parsed = extractJson(raw);
++      if (!parsed || !parsed.action || parsed.action.type === "done") {
++        assistant.content = parsed?.answer || raw;
++        finished = true;
++        break;
++      }
++      addStepElement(`Step ${step}: ${describeAction(parsed.action)}`);
++      const result = await executeAction(parsed.action);
++      await sleep(900);
++      const page = await collectPageContext();
++      observation = [
++        `[Observation after step ${step}]`,
++        `Action: ${JSON.stringify(parsed.action)}`,
++        `Result: ${JSON.stringify(result)}`,
++        page
++          ? `URL: ${page.url}\nTITLE: ${page.title}\n\nTEXT:\n${page.text}\n\nCONTROLS:\n${JSON.stringify(page.controls)}`
++          : "No page context available.",
++      ].join("\n");
++      history.push({ role: "assistant", content: raw });
++    }
++    if (!assistant.content) {
++      assistant.content = finished
++        ? "Done."
++        : "_Stopped after reaching the step limit._";
++    }
++    body.innerHTML = renderMarkdown(assistant.content);
++  } catch (error) {
++    if (error.name === "AbortError") {
++      assistant.content = "_[stopped]_";
++      body.innerHTML = renderMarkdown(assistant.content);
++    } else {
++      assistant.content = `**Error:** ${error.message}`;
++      body.innerHTML = renderMarkdown(assistant.content);
++    }
++  } finally {
++    state.messages.push(assistant);
++    setStreaming(false);
++    state.abortController = null;
++    scrollChat();
++  }
++}
++
++function buildReportMarkdown() {
++  const now = new Date();
++  const targets = state.data.targets || [];
++  const flagged = targets.filter(target => (target.flags || []).length);
++  const totalFlags = targets.reduce(
++    (sum, target) => sum + (target.flags || []).length,
++    0
++  );
++  const lines = [];
++  lines.push("# NullSec Engagement Report");
++  lines.push("");
++  lines.push(`_Generated ${now.toISOString()}_`);
++  lines.push("");
++  lines.push("## Summary");
++  lines.push("");
++  lines.push(`- Targets: ${targets.length}`);
++  lines.push(`- Targets with flags: ${flagged.length}`);
++  lines.push(`- Flags recovered: ${totalFlags}`);
++  lines.push(`- Requests captured this session: ${state.traffic.length}`);
++  lines.push("");
++  lines.push("## Flags");
++  lines.push("");
++  if (!flagged.length) {
++    lines.push("_No flags recorded._");
++  } else {
++    lines.push("| Target | Scope | Flag |");
++    lines.push("| --- | --- | --- |");
++    for (const target of flagged) {
++      for (const flag of target.flags) {
++        lines.push(`| ${target.name} | ${target.scope || "-"} | \`${flag}\` |`);
++      }
++    }
++  }
++  lines.push("");
++  lines.push("## Targets");
++  lines.push("");
++  for (const target of targets) {
++    lines.push(`### ${target.name}`);
++    lines.push("");
++    lines.push(`- Scope: ${target.scope || "unspecified"}`);
++    lines.push(`- Status: ${target.owned ? "OWNED" : "in progress"}`);
++    lines.push(
++      `- Flags: ${(target.flags || []).map(flag => `\`${flag}\``).join(", ") || "none"}`
++    );
++    const notes = (state.data.notes[target.id] || "").trim();
++    if (notes) {
++      lines.push("");
++      lines.push(notes);
++    }
++    lines.push("");
++  }
++  lines.push("## Captured Requests");
++  lines.push("");
++  if (!state.traffic.length) {
++    lines.push("_No requests captured during this session._");
++  } else {
++    lines.push("| Method | URL | Status | Type |");
++    lines.push("| --- | --- | --- | --- |");
++    for (const entry of state.traffic.slice(-100)) {
++      lines.push(
++        `| ${entry.method} | ${entry.url} | ${entry.status || "-"} | ${entry.type || "-"} |`
++      );
++    }
++  }
++  lines.push("");
++  lines.push("---");
++  lines.push("_Prepared with NullSec. For authorized engagements only._");
++  return lines.join("\n");
++}
++
++function generateReport() {
++  switchTab("ai");
++  const markdown = buildReportMarkdown();
++  const wrapper = document.createElement("div");
++  wrapper.className = "ns-msg is-assistant";
++  const role = document.createElement("div");
++  role.className = "ns-msg-role";
++  role.textContent = "Flag report";
++  const pre = document.createElement("pre");
++  pre.className = "ns-report";
++  pre.textContent = markdown;
++  const actions = document.createElement("div");
++  actions.className = "ns-report-actions";
++  const copy = document.createElement("button");
++  copy.className = "ns-mini-btn";
++  copy.textContent = "Copy";
++  copy.addEventListener("click", () => {
++    copyText(markdown);
++    copy.textContent = "Copied";
++    setTimeout(() => (copy.textContent = "Copy"), 1500);
++  });
++  const save = document.createElement("button");
++  save.className = "ns-mini-btn";
++  save.textContent = "Save .md";
++  save.addEventListener("click", async () => {
++    try {
++      const path = PathUtils.join(DATA_DIR(), "nullsec-report.md");
++      await IOUtils.makeDirectory(DATA_DIR(), { ignoreExisting: true });
++      await IOUtils.writeUTF8(path, markdown);
++      save.textContent = "Saved";
++      save.title = path;
++      setTimeout(() => (save.textContent = "Save .md"), 1500);
++    } catch (error) {
++      save.textContent = "Failed";
++      save.title = error.message;
++    }
++  });
++  actions.append(copy, save);
++  wrapper.append(role, pre, actions);
++  dom.chatEmpty.hidden = true;
++  dom.chatMessages.appendChild(wrapper);
++  scrollChat();
 +}
 +
 +function sendRequestToAI(entry) {
@@ -2071,6 +2724,8 @@ index 00000000..7c5792ad
 +  dom.aiKey.placeholder = key
 +    ? "stored with OS encryption (enter to replace)"
 +    : "stored with OS encryption";
++  dom.aiAutopilot.checked = getBoolPref(PREF.autopilot, false);
++  dom.aiPageContext.checked = getBoolPref(PREF.pageContext, true);
 +  dom.aiModelLabel.textContent = `${cfg.provider} - ${cfg.model}`;
 +}
 +
@@ -2083,6 +2738,8 @@ index 00000000..7c5792ad
 +  Services.prefs.setStringPref(PREF.baseurl, baseurl);
 +  Services.prefs.setStringPref(PREF.model, model);
 +  Services.prefs.setStringPref(PREF.temperature, temperature);
++  Services.prefs.setBoolPref(PREF.autopilot, dom.aiAutopilot.checked);
++  Services.prefs.setBoolPref(PREF.pageContext, dom.aiPageContext.checked);
 +  let message = "Saved.";
 +  if (dom.aiKey.value) {
 +    const stored = await setKey(provider, dom.aiKey.value);
@@ -2111,6 +2768,8 @@ index 00000000..7c5792ad
 +  dom.aiTemp = $("ai-temp");
 +  dom.aiStatus = $("ai-status");
 +  dom.aiModelLabel = $("ai-model-label");
++  dom.aiAutopilot = $("ai-autopilot");
++  dom.aiPageContext = $("ai-page-context");
 +  dom.trafficList = $("traffic-list");
 +  dom.trafficDetail = $("traffic-detail");
 +  dom.trafficCount = $("traffic-count");
@@ -2136,10 +2795,21 @@ index 00000000..7c5792ad
 +
 +  for (const chip of document.querySelectorAll(".ns-chip")) {
 +    chip.addEventListener("click", () => {
++      if (chip.id === "chip-report") {
++        generateReport();
++        return;
++      }
 +      dom.chatInput.value = chip.dataset.prompt || "";
 +      dom.chatInput.focus();
 +    });
 +  }
++
++  dom.aiAutopilot.addEventListener("change", () => {
++    Services.prefs.setBoolPref(PREF.autopilot, dom.aiAutopilot.checked);
++  });
++  dom.aiPageContext.addEventListener("change", () => {
++    Services.prefs.setBoolPref(PREF.pageContext, dom.aiPageContext.checked);
++  });
 +
 +  dom.chatSend.addEventListener("click", () =>
 +    sendChat(dom.chatInput.value)
