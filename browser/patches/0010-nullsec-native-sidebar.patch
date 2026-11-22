@@ -983,7 +983,7 @@ index 00000000..5e0eb9e6
 +</html>
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..1cc4288d
+index 00000000..68312f7a
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
 @@ -0,0 +1,1411 @@
@@ -2209,7 +2209,7 @@ index 00000000..1cc4288d
 +    }
 +  });
 +  actions.append(copy, save);
-+  wrapper.append(role, report, actions);
++  wrapper.append(role, actions, report);
 +  dom.empty.hidden = true;
 +  dom.messages.appendChild(wrapper);
 +  scrollChat();
