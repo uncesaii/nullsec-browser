@@ -125,3 +125,16 @@ index 08886723..e96a9022 100644
  @BINPATH@/browser/VisualElements/VisualElements_150.png
  @BINPATH@/browser/VisualElements/VisualElements_70.png
  ; @BINPATH@/private_browsing.exe
+diff --git a/browser/moz.configure b/browser/moz.configure
+index fb45f646..c9f63c5f 100644
+--- a/browser/moz.configure
++++ b/browser/moz.configure
+@@ -13,7 +13,7 @@ imply_option("MOZ_NORMANDY", False)
+ imply_option("MOZ_PROFILE_MIGRATOR", False)
+ 
+ 
+-imply_option("MOZ_APP_VENDOR", "Mullvad")
++imply_option("MOZ_APP_VENDOR", "NullSec")
+ imply_option("MOZ_APP_ID", "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}")
+ # Include the DevTools client, not just the server (which is the default)
+ imply_option("MOZ_DEVTOOLS", "all")
