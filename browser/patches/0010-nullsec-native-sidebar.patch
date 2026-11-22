@@ -827,7 +827,7 @@ index 00000000..36628e77
 \ No newline at end of file
 diff --git a/browser/components/nullsec/sidebar.html b/browser/components/nullsec/sidebar.html
 new file mode 100644
-index 00000000..4b54f0d0
+index 00000000..0f37c5f3
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.html
 @@ -0,0 +1,248 @@
@@ -973,7 +973,7 @@ index 00000000..4b54f0d0
 +                id="ai-key"
 +                class="ns-input"
 +                type="password"
-+                placeholder="stored in Firefox Logins"
++                placeholder="stored with OS encryption"
 +                spellcheck="false"
 +              />
 +            </label>
@@ -1082,13 +1082,13 @@ index 00000000..4b54f0d0
 \ No newline at end of file
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..0df5d67f
+index 00000000..7c5792ad
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
-@@ -0,0 +1,1190 @@
+@@ -0,0 +1,1215 @@
 +
-+const LOGIN_ORIGIN = "chrome://nullsec";
-+const LOGIN_REALM = "NullSec AI";
++const KEY_PREF_PREFIX = "browser.nullsec.ai.key.";
++const KEY_LABEL_PREFIX = "nullsec-ai-key-";
 +const DATA_DIR = () => PathUtils.join(PathUtils.profileDir, "nullsec");
 +const DATA_FILE = () => PathUtils.join(DATA_DIR(), "data.json");
 +
@@ -1270,41 +1270,63 @@ index 00000000..0df5d67f
 +  return `${clean}/v1/messages`;
 +}
 +
-+function findLogin(provider) {
-+  try {
-+    const logins = Services.logins.findLogins(LOGIN_ORIGIN, null, LOGIN_REALM);
-+    return logins.find(login => login.username === provider) || null;
-+  } catch {
-+    return null;
++const keyCache = new Map();
++
++function keyStore() {
++  return Cc["@mozilla.org/security/oskeystore;1"].getService(
++    Ci.nsIOSKeyStore
++  );
++}
++
++async function refreshKeys() {
++  console.info("NullSec: refreshing API keys");
++  keyCache.clear();
++  const store = keyStore();
++  for (const provider of Object.keys(PROVIDER_DEFAULTS)) {
++    const encrypted = Services.prefs.getStringPref(
++      KEY_PREF_PREFIX + provider,
++      ""
++    );
++    if (!encrypted) {
++      continue;
++    }
++    try {
++      const bytes = await store.asyncDecryptBytes(
++        KEY_LABEL_PREFIX + provider,
++        encrypted
++      );
++      keyCache.set(provider, new TextDecoder().decode(new Uint8Array(bytes)));
++    } catch (error) {
++      console.error("NullSec: failed to decrypt key for", provider, error);
++    }
 +  }
++  console.info("NullSec: API keys refreshed", keyCache.size);
 +}
 +
 +function getKey(provider) {
-+  return findLogin(provider)?.password || "";
++  return keyCache.get(provider) || "";
 +}
 +
-+function makeLogin(provider, key) {
-+  const login = Cc["@mozilla.org/login-manager/loginInfo;1"].createInstance(
-+    Ci.nsILoginInfo
-+  );
-+  login.init(LOGIN_ORIGIN, null, LOGIN_REALM, provider, key, "", "");
-+  return login;
-+}
-+
-+function setKey(provider, key) {
++async function setKey(provider, key) {
++  const store = keyStore();
++  const prefName = KEY_PREF_PREFIX + provider;
++  const label = KEY_LABEL_PREFIX + provider;
 +  try {
-+    const existing = findLogin(provider);
 +    if (!key) {
-+      if (existing) {
-+        Services.logins.removeLogin(existing);
-+      }
++      Services.prefs.clearUserPref(prefName);
++      await store.asyncDeleteSecret(label);
++      keyCache.delete(provider);
 +      return true;
 +    }
-+    if (existing) {
-+      Services.logins.modifyLogin(existing, makeLogin(provider, key));
-+    } else {
-+      Services.logins.addLogin(makeLogin(provider, key));
++    if (!(await store.asyncSecretAvailable(label))) {
++      await store.asyncGenerateSecret(label);
 +    }
++    const encrypted = await store.asyncEncryptBytes(
++      label,
++      new TextEncoder().encode(key)
++    );
++    Services.prefs.setStringPref(prefName, encrypted);
++    keyCache.set(provider, key);
 +    return true;
 +  } catch {
 +    return false;
@@ -2047,12 +2069,12 @@ index 00000000..0df5d67f
 +  const key = getKey(cfg.provider);
 +  dom.aiKey.value = "";
 +  dom.aiKey.placeholder = key
-+    ? "stored in Firefox Logins (enter to replace)"
-+    : "stored in Firefox Logins";
++    ? "stored with OS encryption (enter to replace)"
++    : "stored with OS encryption";
 +  dom.aiModelLabel.textContent = `${cfg.provider} - ${cfg.model}`;
 +}
 +
-+function saveSettingsFromUI() {
++async function saveSettingsFromUI() {
 +  const provider = dom.aiProvider.value;
 +  const baseurl = dom.aiBaseurl.value.trim() || PROVIDER_DEFAULTS[provider].baseurl;
 +  const model = dom.aiModel.value.trim() || PROVIDER_DEFAULTS[provider].model;
@@ -2063,9 +2085,9 @@ index 00000000..0df5d67f
 +  Services.prefs.setStringPref(PREF.temperature, temperature);
 +  let message = "Saved.";
 +  if (dom.aiKey.value) {
-+    const stored = setKey(provider, dom.aiKey.value);
++    const stored = await setKey(provider, dom.aiKey.value);
 +    message = stored
-+      ? "Saved. API key stored in Firefox Logins."
++      ? "Saved. API key stored with OS encryption."
 +      : "Settings saved, but the API key could not be stored.";
 +    dom.aiKey.value = "";
 +  }
@@ -2139,9 +2161,9 @@ index 00000000..0df5d67f
 +    applyProviderDefaults(dom.aiProvider.value);
 +  });
 +  $("ai-save").addEventListener("click", saveSettingsFromUI);
-+  $("ai-clear-key").addEventListener("click", () => {
++  $("ai-clear-key").addEventListener("click", async () => {
 +    const provider = dom.aiProvider.value;
-+    const removed = setKey(provider, "");
++    const removed = await setKey(provider, "");
 +    dom.aiStatus.textContent = removed
 +      ? "API key removed."
 +      : "Could not remove API key.";
@@ -2273,6 +2295,9 @@ index 00000000..0df5d67f
 +  startTraffic();
 +  setTrafficPaused(false);
 +  renderTraffic();
++  refreshKeys()
++    .then(() => loadSettingsIntoUI())
++    .catch(error => console.error("NullSec: key refresh failed", error));
 +}
 +
 +init();
