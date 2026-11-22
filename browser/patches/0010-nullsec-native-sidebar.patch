@@ -180,18 +180,19 @@ index 2b957018..dd2dee24 100644
      "PageInfoPreviewChild.sys.mjs",
      "PageStyleChild.sys.mjs",
 diff --git a/browser/app/profile/000-mullvad-browser.js b/browser/app/profile/000-mullvad-browser.js
-index 3636c5d0..a742e58a 100644
+index 3636c5d0..cd9e9558 100644
 --- a/browser/app/profile/000-mullvad-browser.js
 +++ b/browser/app/profile/000-mullvad-browser.js
-@@ -56,3 +56,15 @@ pref("browser.selectiveSavingMode.enabled", false);
+@@ -56,3 +56,16 @@ pref("browser.selectiveSavingMode.enabled", false);
  #else
  pref("browser.selectiveSavingMode.enabled", true);
  #endif
 +
 +// NullSec native sidebar and AI defaults.
 +pref("sidebar.revamp", true);
-+pref("sidebar.main.tools", "nullsec,bookmarks");
++pref("sidebar.main.tools", "nullsec,nullsec-traffic,bookmarks");
 +pref("browser.nullsec.sidebar.enabled", true);
++pref("browser.nullsec.trafficSidebar.enabled", true);
 +pref("browser.nullsec.ai.provider", "openai");
 +pref("browser.nullsec.ai.baseurl", "https://api.openai.com/v1");
 +pref("browser.nullsec.ai.model", "gpt-4o-mini");
@@ -232,12 +233,160 @@ index 7c5e6323..14c7662c 100644
      # Exclude newtab component. tor-browser#43886.
      "originattributes",
      "pagedata",
+diff --git a/browser/components/nullsec/NullSecStore.sys.mjs b/browser/components/nullsec/NullSecStore.sys.mjs
+new file mode 100644
+index 00000000..5b51a371
+--- /dev/null
++++ b/browser/components/nullsec/NullSecStore.sys.mjs
+@@ -0,0 +1,142 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++const MAX_TRAFFIC = 800;
++const TRAFFIC_TOPICS = [
++  "http-on-examine-response",
++  "http-on-examine-cached-response",
++  "http-on-examine-merged-response",
++];
++
++const listeners = new Set();
++const flagValues = new Set();
++
++let traffic = [];
++let flags = [];
++let trafficSeq = 0;
++let paused = false;
++let observer = null;
++
++function emit(type, detail) {
++  for (const listener of listeners) {
++    try {
++      listener(type, detail);
++    } catch (error) {
++      console.error("NullSecStore listener failed", error);
++    }
++  }
++}
++
++const trafficObserver = {
++  observe(subject, topic) {
++    if (paused) {
++      return;
++    }
++    let channel;
++    try {
++      channel = subject.QueryInterface(Ci.nsIHttpChannel);
++    } catch {
++      return;
++    }
++    let url = "";
++    try {
++      url = channel.URI?.spec || "";
++    } catch {
++      return;
++    }
++    if (!/^https?:/i.test(url)) {
++      return;
++    }
++    let entry;
++    try {
++      entry = {
++        id: ++trafficSeq,
++        ts: Date.now(),
++        method: channel.requestMethod || "GET",
++        url,
++        status: channel.responseStatus || 0,
++        statusText: channel.responseStatusText || "",
++        type: channel.getResponseHeader("content-type") || "",
++        size: channel.contentLength,
++        reqHeaders: {},
++        headers: {},
++        cached: topic === "http-on-examine-cached-response",
++      };
++      channel.visitRequestHeaders({
++        visitHeader(name, value) {
++          entry.reqHeaders[name] = value;
++        },
++      });
++      channel.visitResponseHeaders({
++        visitHeader(name, value) {
++          entry.headers[name] = value;
++        },
++      });
++    } catch {
++      return;
++    }
++    traffic.unshift(entry);
++    if (traffic.length > MAX_TRAFFIC) {
++      traffic.length = MAX_TRAFFIC;
++    }
++    emit("traffic", entry);
++  },
++};
++
++function ensureObserver() {
++  if (observer) {
++    return;
++  }
++  observer = trafficObserver;
++  for (const topic of TRAFFIC_TOPICS) {
++    Services.obs.addObserver(observer, topic);
++  }
++}
++
++ensureObserver();
++
++export function subscribe(listener) {
++  listeners.add(listener);
++  return () => listeners.delete(listener);
++}
++
++export function getTraffic() {
++  return traffic;
++}
++
++export function clearTraffic() {
++  traffic = [];
++  emit("clear");
++}
++
++export function getFlags() {
++  return flags;
++}
++
++export function addFlag(value, url = "", note = "") {
++  const flag = String(value || "").trim();
++  if (!flag || flagValues.has(flag)) {
++    return null;
++  }
++  flagValues.add(flag);
++  const entry = {
++    id: flagValues.size,
++    value: flag,
++    url,
++    note: String(note || "").trim(),
++    ts: Date.now(),
++  };
++  flags.unshift(entry);
++  emit("flags", entry);
++  return entry;
++}
++
++export function isPaused() {
++  return paused;
++}
++
++export function setPaused(value) {
++  paused = !!value;
++  emit("paused", paused);
++}
 diff --git a/browser/components/nullsec/jar.mn b/browser/components/nullsec/jar.mn
 new file mode 100644
-index 00000000..9569824e
+index 00000000..fafcebc1
 --- /dev/null
 +++ b/browser/components/nullsec/jar.mn
-@@ -0,0 +1,9 @@
+@@ -0,0 +1,12 @@
 +# This Source Code Form is subject to the terms of the Mozilla Public
 +# License, v. 2.0. If a copy of the MPL was not distributed with this
 +# file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -246,23 +395,26 @@ index 00000000..9569824e
 +    content/browser/nullsec/sidebar.html
 +    content/browser/nullsec/sidebar.mjs
 +    content/browser/nullsec/sidebar.css
++    content/browser/nullsec/traffic.html
++    content/browser/nullsec/traffic.mjs
++    content/browser/nullsec/traffic.css
 +    content/browser/nullsec/nullsec.svg
-\ No newline at end of file
 diff --git a/browser/components/nullsec/moz.build b/browser/components/nullsec/moz.build
 new file mode 100644
-index 00000000..019a1e31
+index 00000000..5df88049
 --- /dev/null
 +++ b/browser/components/nullsec/moz.build
-@@ -0,0 +1,8 @@
+@@ -0,0 +1,10 @@
 +# This Source Code Form is subject to the terms of the Mozilla Public
 +# License, v. 2.0. If a copy of the MPL was not distributed with this
 +# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 +
 +JAR_MANIFESTS += ["jar.mn"]
 +
++MOZ_SRC_FILES += ["NullSecStore.sys.mjs"]
++
 +with Files("**"):
 +    BUG_COMPONENT = ("Firefox", "General")
-\ No newline at end of file
 diff --git a/browser/components/nullsec/nullsec.svg b/browser/components/nullsec/nullsec.svg
 new file mode 100644
 index 00000000..f5f73c19
@@ -276,889 +428,329 @@ index 00000000..f5f73c19
 \ No newline at end of file
 diff --git a/browser/components/nullsec/sidebar.css b/browser/components/nullsec/sidebar.css
 new file mode 100644
-index 00000000..749d44f6
+index 00000000..4be964cd
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.css
-@@ -0,0 +1,872 @@
+@@ -0,0 +1,313 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 +
 +:root {
-+  color-scheme: dark light;
-+  --ns-bg: #1c1b22;
-+  --ns-bg-raised: #23222b;
-+  --ns-bg-sunken: #17161d;
-+  --ns-bg-hover: #2b2a33;
-+  --ns-border: #3a3944;
-+  --ns-text: #fbfbfe;
-+  --ns-muted: #b0b0bd;
-+  --ns-faint: #8a8a96;
-+  --ns-accent: #41f1b6;
-+  --ns-accent-strong: #2bd9a1;
-+  --ns-accent-text: #06231a;
-+  --ns-danger: #ff6b7a;
-+  --ns-warn: #ffd166;
-+  --ns-code-bg: #101016;
-+  --ns-radius: 10px;
-+  --ns-radius-sm: 7px;
-+  --ns-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-+  --ns-mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
++  background-color: transparent;
++  color: var(--sidebar-text-color);
 +}
 +
-+@media (prefers-color-scheme: light) {
-+  :root {
-+    --ns-bg: #f7f7fa;
-+    --ns-bg-raised: #ffffff;
-+    --ns-bg-sunken: #ededf2;
-+    --ns-bg-hover: #e7e7ee;
-+    --ns-border: #d7d7e0;
-+    --ns-text: #15141a;
-+    --ns-muted: #5b5b66;
-+    --ns-faint: #77777f;
-+    --ns-accent: #0f9d74;
-+    --ns-accent-strong: #0b7f5e;
-+    --ns-accent-text: #ffffff;
-+    --ns-danger: #c62839;
-+    --ns-warn: #a15c00;
-+    --ns-code-bg: #f0f0f5;
-+  }
-+}
-+
-+html,
 +body {
++  display: flex;
++  flex-direction: column;
 +  height: 100%;
-+}
-+
-+body {
 +  margin: 0;
-+  background: var(--ns-bg);
-+  color: var(--ns-text);
-+  font-family: var(--ns-font);
-+  font-size: 13px;
-+  line-height: 1.45;
 +  overflow: hidden;
 +}
 +
-+#app {
++#header {
++  align-items: center;
++  background-color: var(--sidebar-background-color);
++  border-bottom: 1px solid var(--border-color);
++  display: flex;
++  flex-direction: row;
++  gap: var(--space-xsmall);
++  padding-inline: var(--space-large);
++}
++
++#header select {
++  --caret-anchor: left;
++  --caret-padding: var(--space-xsmall);
++  --end-padding: 0px;
++  --start-padding: calc(
++    var(--caret-padding) + var(--background-image-width) + var(--space-xsmall)
++  );
++  background-color: var(--button-background-color-ghost);
++  background-position-x: var(--caret-anchor) var(--caret-padding);
++  color: var(--button-text-color-ghost);
++  flex: 1;
++  height: var(--button-size-icon);
++  margin-block: var(--space-xsmall);
++  min-width: 0;
++  overflow: hidden;
++  text-overflow: ellipsis;
++}
++
++#header select:hover {
++  background-color: var(--button-background-color-ghost-hover);
++  color: var(--button-text-color-ghost-hover);
++}
++
++#header select:dir(rtl) {
++  --caret-anchor: right;
++}
++
++#context {
++  border-bottom: 1px solid var(--border-color-deemphasized);
++  color: var(--text-color-deemphasized);
++  font-size: 12px;
++  padding: var(--space-small) var(--space-large);
++}
++
++#ai-context-title,
++#ai-context-url {
++  display: block;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++#ai-context-title {
++  color: var(--text-color);
++  font-weight: var(--font-weight-semibold);
++}
++
++#settings {
++  border-bottom: 1px solid var(--border-color);
++  max-height: 55%;
++  overflow-y: auto;
++  padding: var(--space-small) var(--space-large) var(--space-medium);
++}
++
++#settings[hidden] {
++  display: none;
++}
++
++.settings-fields {
 +  display: flex;
 +  flex-direction: column;
-+  height: 100vh;
-+  min-height: 0;
++  gap: var(--space-small);
 +}
 +
-+button,
-+input,
-+select,
-+textarea {
-+  font: inherit;
-+  color: inherit;
++.settings-fields > * {
++  display: block;
++  width: 100%;
 +}
 +
-+button {
-+  cursor: pointer;
-+}
-+
-+/* Header */
-+.ns-header {
-+  display: flex;
++.settings-actions {
 +  align-items: center;
-+  gap: 8px;
-+  padding: 10px 12px 8px;
-+  border-bottom: 1px solid var(--ns-border);
-+  background: var(--ns-bg);
-+}
-+
-+.ns-brand {
 +  display: flex;
-+  align-items: center;
-+  gap: 9px;
-+  min-width: 0;
++  flex-wrap: wrap;
++  gap: var(--space-small);
++  margin-block-start: var(--space-small);
 +}
 +
-+.ns-logo {
-+  width: 22px;
-+  height: 22px;
-+  color: var(--ns-accent);
-+  fill: var(--ns-accent);
-+  flex: none;
-+}
-+
-+.ns-brand-text {
-+  display: flex;
-+  flex-direction: column;
-+  min-width: 0;
-+  line-height: 1.15;
-+}
-+
-+.ns-name {
-+  font-weight: 700;
-+  font-size: 14px;
-+  letter-spacing: 0.2px;
-+}
-+
-+.ns-sub {
-+  color: var(--ns-muted);
-+  font-size: 11px;
-+}
-+
-+.ns-header .ns-icon-btn {
++.settings-status {
++  color: var(--text-color-deemphasized);
++  font-size: 12px;
 +  margin-inline-start: auto;
 +}
 +
-+.ns-icon-btn {
-+  width: 26px;
-+  height: 26px;
-+  display: inline-grid;
-+  place-items: center;
-+  border: 0;
-+  border-radius: var(--ns-radius-sm);
-+  background: transparent;
-+  color: var(--ns-muted);
-+}
-+
-+.ns-icon-btn:hover {
-+  background: var(--ns-bg-hover);
-+  color: var(--ns-text);
-+}
-+
-+/* Tabs */
-+.ns-tabs {
++#message-container {
 +  display: flex;
-+  gap: 2px;
-+  padding: 6px 8px;
-+  border-bottom: 1px solid var(--ns-border);
-+  background: var(--ns-bg);
-+  overflow-x: auto;
-+  scrollbar-width: none;
-+}
-+
-+.ns-tab {
-+  border: 0;
-+  background: transparent;
-+  color: var(--ns-muted);
-+  padding: 5px 9px;
-+  border-radius: 999px;
-+  white-space: nowrap;
-+  font-weight: 600;
-+  font-size: 12px;
-+}
-+
-+.ns-tab:hover {
-+  background: var(--ns-bg-hover);
-+  color: var(--ns-text);
-+}
-+
-+.ns-tab.is-active {
-+  background: color-mix(in srgb, var(--ns-accent) 18%, transparent);
-+  color: var(--ns-accent);
-+}
-+
-+.ns-pill {
-+  display: inline-block;
-+  min-width: 16px;
-+  padding: 0 5px;
-+  margin-inline-start: 3px;
-+  border-radius: 999px;
-+  background: color-mix(in srgb, var(--ns-text) 10%, transparent);
-+  color: inherit;
-+  font-size: 10px;
-+  line-height: 16px;
-+  text-align: center;
-+}
-+
-+/* Panels */
-+.ns-main {
-+  position: relative;
 +  flex: 1;
-+  min-height: 0;
-+  display: flex;
-+}
-+
-+.ns-panel {
-+  display: none;
 +  flex-direction: column;
-+  flex: 1;
-+  min-height: 0;
-+  min-width: 0;
-+  padding: 10px 10px 12px;
-+  overflow: hidden;
-+}
-+
-+.ns-panel.is-active {
-+  display: flex;
-+}
-+
-+/* Shared controls */
-+.ns-row {
-+  display: flex;
-+  align-items: center;
-+  gap: 6px;
-+}
-+
-+.ns-spacer {
-+  flex: 1;
-+}
-+
-+.ns-muted {
-+  color: var(--ns-muted);
-+  font-size: 11px;
-+  overflow: hidden;
-+  text-overflow: ellipsis;
-+  white-space: nowrap;
-+}
-+
-+.ns-input,
-+.ns-select {
-+  width: 100%;
-+  box-sizing: border-box;
-+  border: 1px solid var(--ns-border);
-+  border-radius: var(--ns-radius-sm);
-+  background: var(--ns-bg-sunken);
-+  color: var(--ns-text);
-+  padding: 6px 8px;
-+  outline: none;
-+}
-+
-+.ns-input:focus,
-+.ns-select:focus,
-+.ns-notes:focus,
-+#chat-input:focus {
-+  border-color: var(--ns-accent);
-+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ns-accent) 25%, transparent);
-+}
-+
-+.ns-input::placeholder,
-+.ns-notes::placeholder,
-+#chat-input::placeholder {
-+  color: var(--ns-faint);
-+}
-+
-+.ns-btn {
-+  border: 1px solid transparent;
-+  border-radius: var(--ns-radius-sm);
-+  padding: 6px 10px;
-+  font-weight: 600;
-+  font-size: 12px;
-+  white-space: nowrap;
-+}
-+
-+.ns-btn-primary {
-+  background: var(--ns-accent);
-+  color: var(--ns-accent-text);
-+}
-+
-+.ns-btn-primary:hover {
-+  background: var(--ns-accent-strong);
-+}
-+
-+.ns-btn-ghost {
-+  background: transparent;
-+  border-color: var(--ns-border);
-+  color: var(--ns-text);
-+}
-+
-+.ns-btn-ghost:hover {
-+  background: var(--ns-bg-hover);
-+}
-+
-+.ns-mini-btn {
-+  border: 0;
-+  background: transparent;
-+  color: var(--ns-muted);
-+  font-size: 11px;
-+  padding: 3px 5px;
-+  border-radius: 5px;
-+}
-+
-+.ns-mini-btn:hover {
-+  background: var(--ns-bg-hover);
-+  color: var(--ns-text);
-+}
-+
-+.ns-dot {
-+  width: 7px;
-+  height: 7px;
-+  border-radius: 50%;
-+  background: var(--ns-accent);
-+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ns-accent) 16%, transparent);
-+  flex: none;
-+}
-+
-+.ns-dot.is-paused {
-+  background: var(--ns-faint);
-+  box-shadow: none;
-+}
-+
-+/* Context strip */
-+.ns-context {
-+  display: flex;
-+  align-items: center;
-+  gap: 8px;
-+  padding: 6px 8px;
-+  margin-bottom: 8px;
-+  border: 1px solid var(--ns-border);
-+  border-radius: var(--ns-radius-sm);
-+  background: var(--ns-bg-raised);
-+}
-+
-+.ns-context-text {
-+  font-size: 11px;
-+  color: var(--ns-muted);
-+  overflow: hidden;
-+  text-overflow: ellipsis;
-+  white-space: nowrap;
-+  direction: rtl;
-+  text-align: left;
-+}
-+
-+/* Chat */
-+.ns-chat {
-+  flex: 1;
 +  min-height: 0;
 +  overflow-y: auto;
-+  display: flex;
-+  flex-direction: column;
-+  gap: 10px;
-+  padding: 2px 2px 8px;
++  padding: var(--space-small) var(--space-large);
 +}
 +
-+.ns-empty {
++#chat-messages {
++  display: flex;
++  flex-direction: column;
++  gap: var(--space-small);
++}
++
++#chat-empty {
++  color: var(--text-color-deemphasized);
 +  margin: auto;
 +  max-width: 320px;
++  padding: var(--space-large) 0;
 +  text-align: center;
-+  padding: 24px 10px;
 +}
 +
-+.ns-empty-title {
-+  font-size: 16px;
-+  font-weight: 700;
-+  margin-bottom: 4px;
++#chat-empty[hidden] {
++  display: none;
 +}
 +
-+.ns-empty-sub {
-+  color: var(--ns-muted);
-+  font-size: 12px;
-+  margin-bottom: 14px;
++.empty-title {
++  color: var(--text-color);
++  font-size: 15px;
++  font-weight: var(--font-weight-semibold);
++  margin-block-end: var(--space-xsmall);
 +}
 +
-+.ns-chips {
-+  display: flex;
-+  flex-wrap: wrap;
-+  justify-content: center;
-+  gap: 6px;
++.empty-sub {
++  font-size: 13px;
++  line-height: 1.5;
 +}
 +
-+.ns-chip {
-+  border: 1px solid var(--ns-border);
-+  background: var(--ns-bg-raised);
-+  color: var(--ns-text);
-+  border-radius: 999px;
-+  padding: 5px 10px;
++.message {
++  background-color: var(--background-color-box);
++  border: 1px solid var(--border-color-deemphasized);
++  border-radius: var(--border-radius-medium);
++  padding: var(--space-small);
++}
++
++.message-role {
++  color: var(--text-color-deemphasized);
 +  font-size: 11px;
-+}
-+
-+.ns-chip:hover {
-+  border-color: var(--ns-accent);
-+  color: var(--ns-accent);
-+}
-+
-+.ns-msg {
-+  display: flex;
-+  flex-direction: column;
-+  gap: 4px;
-+  max-width: 100%;
-+}
-+
-+.ns-msg-role {
-+  font-size: 10px;
-+  font-weight: 700;
-+  letter-spacing: 0.6px;
++  font-weight: var(--font-weight-semibold);
++  margin-block-end: var(--space-xsmall);
 +  text-transform: uppercase;
-+  color: var(--ns-faint);
 +}
 +
-+.ns-msg-body {
-+  border: 1px solid var(--ns-border);
-+  border-radius: var(--ns-radius);
-+  padding: 8px 10px;
-+  background: var(--ns-bg-raised);
-+  white-space: pre-wrap;
++.message-body {
++  line-height: 1.5;
 +  overflow-wrap: anywhere;
 +}
 +
-+.ns-msg.is-user .ns-msg-body {
-+  background: color-mix(in srgb, var(--ns-accent) 12%, var(--ns-bg-raised));
-+  border-color: color-mix(in srgb, var(--ns-accent) 30%, var(--ns-border));
++.message-body > :first-child {
++  margin-block-start: 0;
 +}
 +
-+.ns-msg-body code {
-+  font-family: var(--ns-mono);
-+  font-size: 11.5px;
-+  background: var(--ns-code-bg);
-+  border-radius: 4px;
-+  padding: 1px 4px;
++.message-body > :last-child {
++  margin-block-end: 0;
 +}
 +
-+.ns-msg-body pre {
-+  margin: 6px 0;
-+  padding: 8px;
-+  border-radius: 7px;
-+  background: var(--ns-code-bg);
++.message-body p,
++.message-body ul,
++.message-body ol,
++.message-body pre,
++.message-body table {
++  margin-block: 0 var(--space-small);
++}
++
++.message-body h1,
++.message-body h2,
++.message-body h3,
++.message-body h4,
++.message-body h5,
++.message-body h6 {
++  font-size: 1em;
++  margin-block: var(--space-small);
++}
++
++.message-body ul,
++.message-body ol {
++  padding-inline-start: var(--space-large);
++}
++
++.message-body li {
++  margin-block-end: var(--space-xsmall);
++}
++
++.message-body a {
++  color: var(--link-color);
++}
++
++.message-body code {
++  background-color: var(--background-color-canvas);
++  border: 1px solid var(--border-color-deemphasized);
++  border-radius: var(--border-radius-small);
++  font-family: var(--monospace-font-family, monospace);
++  font-size: 0.92em;
++  padding: 0 3px;
++}
++
++.message-body pre {
++  background-color: var(--background-color-canvas);
++  border: 1px solid var(--border-color-deemphasized);
++  border-radius: var(--border-radius-small);
++  max-width: 100%;
++  overflow: auto;
++  padding: var(--space-small);
++}
++
++.message-body pre code {
++  background: none;
++  border: none;
++  padding: 0;
++}
++
++.message-body table {
++  border-collapse: collapse;
++  display: block;
++  max-width: 100%;
 +  overflow-x: auto;
 +}
 +
-+.ns-msg-body pre code {
-+  padding: 0;
-+  background: none;
-+}
-+
-+.ns-msg-body h1,
-+.ns-msg-body h2,
-+.ns-msg-body h3,
-+.ns-report h1,
-+.ns-report h2,
-+.ns-report h3 {
-+  margin: 9px 0 4px;
-+  line-height: 1.3;
-+}
-+
-+.ns-msg-body h1,
-+.ns-report h1 {
-+  font-size: 14px;
-+}
-+
-+.ns-msg-body h2,
-+.ns-report h2 {
-+  font-size: 12.5px;
-+}
-+
-+.ns-msg-body h3,
-+.ns-report h3 {
++.message-body th,
++.message-body td {
++  border: 1px solid var(--border-color-deemphasized);
 +  font-size: 12px;
-+}
-+
-+.ns-msg-body p,
-+.ns-report p {
-+  margin: 0 0 6px;
-+}
-+
-+.ns-msg-body ul,
-+.ns-msg-body ol,
-+.ns-report ul,
-+.ns-report ol {
-+  margin: 0 0 6px;
-+  padding-inline-start: 18px;
-+}
-+
-+.ns-msg-body li,
-+.ns-report li {
-+  margin: 1px 0;
-+}
-+
-+.ns-msg-body hr,
-+.ns-report hr {
-+  margin: 8px 0;
-+  border: 0;
-+  border-top: 1px solid var(--ns-border);
-+}
-+
-+.ns-msg-body table,
-+.ns-report table {
-+  width: 100%;
-+  margin: 4px 0 8px;
-+  border-collapse: collapse;
-+  font-size: 11px;
-+}
-+
-+.ns-msg-body th,
-+.ns-msg-body td,
-+.ns-report th,
-+.ns-report td {
-+  padding: 3px 6px;
-+  border-bottom: 1px solid var(--ns-border);
++  padding: 4px 6px;
 +  text-align: start;
 +  vertical-align: top;
 +}
 +
-+.ns-msg-body th,
-+.ns-report th {
-+  font-weight: 600;
++.message-body th {
++  background-color: var(--background-color-canvas);
++  font-weight: var(--font-weight-semibold);
 +}
 +
-+/* Composer */
-+.ns-composer {
-+  border-top: 1px solid var(--ns-border);
-+  padding-top: 8px;
++.message-body hr {
++  border: none;
++  border-top: 1px solid var(--border-color-deemphasized);
++  margin-block: var(--space-small);
++}
++
++.step {
++  border-inline-start: 2px solid var(--border-color-deemphasized);
++  color: var(--text-color-deemphasized);
++  font-size: 12px;
++  padding: 2px var(--space-small);
++}
++
++.report-actions {
++  display: flex;
++  gap: var(--space-small);
++  margin-block-start: var(--space-small);
++}
++
++#composer {
++  background-color: var(--sidebar-background-color);
++  border-top: 1px solid var(--border-color);
++  display: flex;
++  flex-direction: column;
++  gap: var(--space-small);
++  padding: var(--space-small) var(--space-large) var(--space-large);
 +}
 +
 +#chat-input {
-+  width: 100%;
++  background-color: var(--background-color-box);
++  border: 1px solid var(--border-color);
++  border-radius: var(--border-radius-small);
 +  box-sizing: border-box;
-+  resize: vertical;
-+  min-height: 42px;
-+  max-height: 160px;
-+  border: 1px solid var(--ns-border);
-+  border-radius: var(--ns-radius);
-+  background: var(--ns-bg-sunken);
-+  color: var(--ns-text);
-+  padding: 8px 9px;
-+  outline: none;
-+}
-+
-+.ns-composer-row {
-+  display: flex;
-+  align-items: center;
-+  gap: 6px;
-+  margin-top: 6px;
-+}
-+
-+/* Settings */
-+.ns-settings {
-+  border: 1px solid var(--ns-border);
-+  border-radius: var(--ns-radius);
-+  background: var(--ns-bg-raised);
-+  padding: 10px;
-+  margin-top: 8px;
-+  max-height: 55vh;
-+  overflow-y: auto;
-+}
-+
-+.ns-field {
-+  display: flex;
-+  flex-direction: column;
-+  gap: 4px;
-+  margin-bottom: 8px;
-+  font-size: 11px;
-+  color: var(--ns-muted);
-+}
-+
-+.ns-field-inline {
-+  flex-direction: row;
-+  align-items: center;
-+  gap: 8px;
-+  margin: 0;
-+}
-+
-+.ns-field-inline .ns-select {
-+  width: auto;
-+  min-width: 140px;
-+}
-+
-+/* Traffic */
-+.ns-toolbar {
-+  display: grid;
-+  grid-template-columns: 1fr auto auto;
-+  gap: 6px;
-+  margin-bottom: 6px;
-+}
-+
-+#traffic-filter {
-+  grid-column: 1 / -1;
-+}
-+
-+.ns-traffic-status {
-+  display: flex;
-+  align-items: center;
-+  gap: 8px;
-+  margin-bottom: 6px;
-+}
-+
-+.ns-traffic-list {
-+  flex: 1;
-+  min-height: 0;
-+  overflow-y: auto;
-+  border: 1px solid var(--ns-border);
-+  border-radius: var(--ns-radius);
-+  background: var(--ns-bg-sunken);
-+}
-+
-+.ns-req {
-+  display: grid;
-+  grid-template-columns: 54px 1fr auto;
-+  gap: 4px 8px;
-+  align-items: center;
-+  padding: 7px 8px;
-+  border-bottom: 1px solid var(--ns-border);
-+  cursor: pointer;
-+}
-+
-+.ns-req:last-child {
-+  border-bottom: 0;
-+}
-+
-+.ns-req:hover,
-+.ns-req.is-selected {
-+  background: var(--ns-bg-hover);
-+}
-+
-+.ns-method {
-+  font-family: var(--ns-mono);
-+  font-size: 10px;
-+  font-weight: 700;
-+  color: var(--ns-accent);
-+}
-+
-+.ns-method.is-post,
-+.ns-method.is-put,
-+.ns-method.is-patch {
-+  color: var(--ns-warn);
-+}
-+
-+.ns-method.is-delete {
-+  color: var(--ns-danger);
-+}
-+
-+.ns-req-host {
-+  font-weight: 600;
-+  overflow: hidden;
-+  text-overflow: ellipsis;
-+  white-space: nowrap;
-+}
-+
-+.ns-req-path {
-+  grid-column: 2;
-+  color: var(--ns-muted);
-+  font-family: var(--ns-mono);
-+  font-size: 10.5px;
-+  overflow: hidden;
-+  text-overflow: ellipsis;
-+  white-space: nowrap;
-+}
-+
-+.ns-req-status {
-+  font-family: var(--ns-mono);
-+  font-size: 10.5px;
-+  font-weight: 700;
-+  color: var(--ns-muted);
-+  text-align: right;
-+}
-+
-+.ns-req-status.is-ok {
-+  color: var(--ns-accent);
-+}
-+
-+.ns-req-status.is-redirect {
-+  color: var(--ns-warn);
-+}
-+
-+.ns-req-status.is-error {
-+  color: var(--ns-danger);
-+}
-+
-+.ns-traffic-detail {
-+  margin-top: 8px;
-+  border: 1px solid var(--ns-border);
-+  border-radius: var(--ns-radius);
-+  background: var(--ns-bg-raised);
-+  padding: 9px;
-+  max-height: 42vh;
-+  overflow-y: auto;
-+}
-+
-+.ns-detail-title {
-+  font-family: var(--ns-mono);
-+  font-size: 11px;
-+  overflow-wrap: anywhere;
-+  margin-bottom: 6px;
-+}
-+
-+.ns-headers {
-+  font-family: var(--ns-mono);
-+  font-size: 10.5px;
-+  color: var(--ns-muted);
-+  white-space: pre-wrap;
-+  overflow-wrap: anywhere;
-+  margin: 6px 0;
-+}
-+
-+.ns-detail-actions {
-+  display: flex;
-+  flex-wrap: wrap;
-+  gap: 6px;
-+  margin-top: 8px;
-+}
-+
-+.ns-detail-output {
-+  margin-top: 8px;
-+  font-family: var(--ns-mono);
-+  font-size: 10.5px;
-+  white-space: pre-wrap;
-+  overflow-wrap: anywhere;
-+  background: var(--ns-code-bg);
-+  border-radius: 7px;
-+  padding: 8px;
-+  max-height: 180px;
-+  overflow-y: auto;
-+}
-+
-+/* Notes */
-+.ns-notes-head {
-+  margin-bottom: 6px;
-+}
-+
-+.ns-notes {
-+  flex: 1;
-+  min-height: 0;
++  color: var(--text-color);
++  font: inherit;
++  max-height: 140px;
++  min-height: 40px;
++  padding: var(--space-small);
 +  resize: none;
 +  width: 100%;
-+  box-sizing: border-box;
-+  border: 1px solid var(--ns-border);
-+  border-radius: var(--ns-radius);
-+  background: var(--ns-bg-sunken);
-+  color: var(--ns-text);
-+  padding: 10px;
-+  font-family: var(--ns-mono);
-+  font-size: 12px;
-+  line-height: 1.55;
-+  outline: none;
 +}
 +
-+/* Targets */
-+.ns-form {
++#chat-input:focus-visible {
++  outline: var(--focus-outline);
++  outline-offset: var(--focus-outline-offset);
++}
++
++#composer-actions {
++  align-items: center;
 +  display: flex;
-+  flex-direction: column;
-+  gap: 6px;
-+  margin-bottom: 8px;
++  gap: var(--space-small);
 +}
 +
-+.ns-flag-row {
-+  margin-bottom: 8px;
-+}
-+
-+.ns-flag-row .ns-select {
-+  width: auto;
-+  max-width: 42%;
-+}
-+
-+.ns-targets {
++.spacer {
 +  flex: 1;
-+  min-height: 0;
-+  overflow-y: auto;
-+  display: flex;
-+  flex-direction: column;
-+  gap: 6px;
 +}
 +
-+.ns-target {
-+  border: 1px solid var(--ns-border);
-+  border-radius: var(--ns-radius);
-+  background: var(--ns-bg-raised);
-+  padding: 9px;
++moz-button[hidden] {
++  display: none;
 +}
-+
-+.ns-target-head {
-+  display: flex;
-+  align-items: center;
-+  gap: 6px;
-+}
-+
-+.ns-target-name {
-+  font-weight: 700;
-+}
-+
-+.ns-target-scope {
-+  color: var(--ns-muted);
-+  font-family: var(--ns-mono);
-+  font-size: 10.5px;
-+  overflow-wrap: anywhere;
-+  margin-top: 2px;
-+}
-+
-+.ns-target-flags {
-+  display: flex;
-+  flex-wrap: wrap;
-+  gap: 4px;
-+  margin-top: 6px;
-+}
-+
-+.ns-flag {
-+  font-family: var(--ns-mono);
-+  font-size: 10.5px;
-+  background: color-mix(in srgb, var(--ns-accent) 16%, transparent);
-+  color: var(--ns-accent);
-+  border-radius: 5px;
-+  padding: 2px 6px;
-+  overflow-wrap: anywhere;
-+}
-+
-+.ns-status {
-+  margin-inline-start: auto;
-+  font-size: 10px;
-+  font-weight: 700;
-+  text-transform: uppercase;
-+  letter-spacing: 0.5px;
-+  color: var(--ns-faint);
-+}
-+
-+.ns-status.is-owned {
-+  color: var(--ns-accent);
-+}
-+
-+.ns-empty-inline {
-+  color: var(--ns-muted);
-+  font-size: 12px;
-+  text-align: center;
-+  padding: 18px 8px;
-+}
-+
-+.ns-check {
-+  display: flex;
-+  align-items: center;
-+  gap: 8px;
-+  font-size: 12px;
-+  color: var(--ns-text, currentColor);
-+  padding: 4px 2px;
-+}
-+
-+.ns-check input {
-+  accent-color: var(--ns-accent, #41f1b6);
-+}
-+
-+.ns-step {
-+  align-self: flex-start;
-+  max-width: 100%;
-+  margin: 2px 0;
-+  padding: 4px 10px;
-+  border-radius: 999px;
-+  background: color-mix(in srgb, currentColor 8%, transparent);
-+  font-size: 11px;
-+  opacity: 0.85;
-+  white-space: pre-wrap;
-+  word-break: break-word;
-+}
-+
-+.ns-report {
-+  margin: 0 0 8px;
-+  padding: 10px 12px;
-+  border-radius: 8px;
-+  background: color-mix(in srgb, currentColor 6%, transparent);
-+  font-size: 11.5px;
-+  line-height: 1.55;
-+  word-break: break-word;
-+  max-height: 420px;
-+  overflow: auto;
-+}
-+
-+.ns-report code {
-+  padding: 1px 4px;
-+  border-radius: 4px;
-+  background: var(--ns-code-bg);
-+  font-family: var(--ns-mono);
-+  font-size: 10.5px;
-+}
-+
-+.ns-report-actions {
-+  display: flex;
-+  gap: 8px;
-+}
-\ No newline at end of file
 diff --git a/browser/components/nullsec/sidebar.html b/browser/components/nullsec/sidebar.html
 new file mode 100644
-index 00000000..25e713c8
+index 00000000..37ed9dca
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.html
-@@ -0,0 +1,263 @@
+@@ -0,0 +1,154 @@
 +<!-- This Source Code Form is subject to the terms of the Mozilla Public
 +   - License, v. 2.0. If a copy of the MPL was not distributed with this
 +   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
@@ -1184,256 +776,152 @@ index 00000000..25e713c8
 +    <script src="chrome://browser/content/contentTheme.js"></script>
 +    <script
 +      type="module"
++      src="chrome://global/content/elements/moz-button.mjs"
++    ></script>
++    <script
++      type="module"
++      src="chrome://global/content/elements/moz-input-text.mjs"
++    ></script>
++    <script
++      type="module"
++      src="chrome://global/content/elements/moz-input-password.mjs"
++    ></script>
++    <script
++      type="module"
++      src="chrome://global/content/elements/moz-input-number.mjs"
++    ></script>
++    <script
++      type="module"
++      src="chrome://global/content/elements/moz-textarea.mjs"
++    ></script>
++    <script
++      type="module"
++      src="chrome://global/content/elements/moz-toggle.mjs"
++    ></script>
++    <script
++      type="module"
++      src="chrome://global/content/elements/moz-card.mjs"
++    ></script>
++    <script
++      type="module"
 +      src="chrome://browser/content/nullsec/sidebar.mjs"
 +    ></script>
 +  </head>
 +  <body>
-+    <div id="app">
-+      <header class="ns-header">
-+        <div class="ns-brand">
-+          <img
-+            class="ns-logo"
-+            src="chrome://browser/content/nullsec/nullsec.svg"
-+            alt=""
-+          />
-+          <div class="ns-brand-text">
-+            <span class="ns-name">NullSec</span>
-+            <span class="ns-sub">CTF workspace</span>
-+          </div>
++    <div id="header">
++      <select id="header-provider" aria-label="AI provider">
++        <option value="openai">OpenAI</option>
++        <option value="anthropic">Anthropic</option>
++        <option value="compatible">OpenAI-compatible</option>
++      </select>
++      <moz-button
++        id="header-traffic"
++        type="icon ghost"
++        iconsrc="chrome://global/skin/icons/developer.svg"
++        aria-label="Traffic"
++        title="Traffic"
++      ></moz-button>
++      <moz-button
++        id="header-settings"
++        type="icon ghost"
++        iconsrc="chrome://global/skin/icons/settings.svg"
++        aria-label="Settings"
++        title="Settings"
++      ></moz-button>
++      <moz-button
++        id="header-close"
++        type="icon ghost"
++        iconsrc="chrome://global/skin/icons/close.svg"
++        aria-label="Close sidebar"
++        title="Close sidebar"
++      ></moz-button>
++    </div>
++
++    <div id="context">
++      <span id="ai-context-title">No active tab</span>
++      <span id="ai-context-url"></span>
++    </div>
++
++    <section id="settings" hidden>
++      <moz-card heading="Settings">
++        <div class="settings-fields">
++          <moz-input-text id="ai-baseurl" label="Base URL"></moz-input-text>
++          <moz-input-text id="ai-model" label="Model"></moz-input-text>
++          <moz-input-password id="ai-key" label="API key"></moz-input-password>
++          <moz-input-number
++            id="ai-temp"
++            label="Temperature"
++            min="0"
++            max="2"
++            step="0.1"
++          ></moz-input-number>
++          <moz-textarea
++            id="ai-system"
++            label="System prompt"
++            placeholder="Leave empty to use the NullSec default."
++          ></moz-textarea>
++          <moz-toggle
++            id="ai-autopilot"
++            label="Autopilot"
++            description="Let NullSec operate the active tab."
++          ></moz-toggle>
++          <moz-toggle
++            id="ai-page-context"
++            label="Include page content"
++            description="Send visible text and controls with each message."
++          ></moz-toggle>
 +        </div>
-+        <button
-+          id="ns-close"
-+          class="ns-icon-btn"
-+          title="Close sidebar"
-+          aria-label="Close sidebar"
-+        >
-+          &#x2715;
-+        </button>
-+      </header>
++        <div class="settings-actions">
++          <moz-button id="ai-save" type="primary">Save</moz-button>
++          <moz-button id="ai-clear-key" type="ghost">Forget key</moz-button>
++          <span id="ai-status" class="settings-status"></span>
++        </div>
++      </moz-card>
++    </section>
 +
-+      <nav class="ns-tabs" role="tablist">
-+        <button class="ns-tab is-active" data-tab="ai" role="tab">AI</button>
-+        <button class="ns-tab" data-tab="traffic" role="tab">
-+          Traffic <span id="traffic-count" class="ns-pill">0</span>
-+        </button>
-+        <button class="ns-tab" data-tab="notes" role="tab">Notes</button>
-+        <button class="ns-tab" data-tab="targets" role="tab">Targets</button>
-+      </nav>
++    <div id="message-container">
++      <div id="chat-empty">
++        <div class="empty-title">NullSec AI</div>
++        <div class="empty-sub">
++          Authorized CTF copilot. Ask about this page, or enable Autopilot to
++          let NullSec operate the browser.
++        </div>
++      </div>
++      <div id="chat-messages"></div>
++    </div>
 +
-+      <main class="ns-main">
-+        <section class="ns-panel is-active" data-panel="ai">
-+          <div class="ns-context" id="ai-context">
-+            <span class="ns-dot"></span>
-+            <span id="ai-context-text" class="ns-context-text"
-+              >No active tab</span
-+            >
-+          </div>
-+
-+          <div class="ns-chat" id="chat-messages">
-+            <div class="ns-empty" id="chat-empty">
-+              <div class="ns-empty-title">NullSec AI</div>
-+              <div class="ns-empty-sub">
-+                Authorized CTF copilot. Ask about this page, a captured request,
-+                or a payload.
-+              </div>
-+              <div class="ns-chips">
-+                <button
-+                  class="ns-chip"
-+                  data-prompt="Recon the current page. Identify the tech stack, forms, parameters, and likely attack surface."
-+                >
-+                  Recon this page
-+                </button>
-+                <button
-+                  class="ns-chip"
-+                  data-prompt="Triage the open tabs and identify which ones look like in-scope CTF targets."
-+                >
-+                  Triage tabs
-+                </button>
-+                <button
-+                  class="ns-chip"
-+                  data-prompt="Give me a focused web CTF reconnaissance checklist for the current target."
-+                >
-+                  CTF checklist
-+                </button>
-+                <button
-+                  id="chip-report"
-+                  class="ns-chip"
-+                  data-prompt="Produce a professional flag report for this engagement: targets, scopes, flags, evidence, and next steps."
-+                >
-+                  Flag report
-+                </button>
-+              </div>
-+            </div>
-+          </div>
-+
-+          <div class="ns-composer">
-+            <textarea
-+              id="chat-input"
-+              rows="2"
-+              placeholder="Ask NullSec...  (Enter to send, Shift+Enter for newline)"
-+            ></textarea>
-+            <div class="ns-composer-row">
-+              <button id="ai-settings-toggle" class="ns-mini-btn">
-+                Settings
-+              </button>
-+              <span id="ai-model-label" class="ns-muted"></span>
-+              <span class="ns-spacer"></span>
-+              <button id="chat-stop" class="ns-btn ns-btn-ghost" hidden>
-+                Stop
-+              </button>
-+              <button id="chat-send" class="ns-btn ns-btn-primary">Send</button>
-+            </div>
-+          </div>
-+
-+          <div class="ns-settings" id="ai-settings" hidden>
-+            <label class="ns-field">
-+              <span>Provider</span>
-+              <select id="ai-provider" class="ns-select">
-+                <option value="openai">OpenAI</option>
-+                <option value="anthropic">Anthropic</option>
-+                <option value="compatible">OpenAI-compatible (local)</option>
-+              </select>
-+            </label>
-+            <label class="ns-field">
-+              <span>Base URL</span>
-+              <input id="ai-baseurl" class="ns-input" spellcheck="false" />
-+            </label>
-+            <label class="ns-field">
-+              <span>Model</span>
-+              <input id="ai-model" class="ns-input" spellcheck="false" />
-+            </label>
-+            <label class="ns-field">
-+              <span>API key</span>
-+              <input
-+                id="ai-key"
-+                class="ns-input"
-+                type="password"
-+                placeholder="stored with OS encryption"
-+                spellcheck="false"
-+              />
-+            </label>
-+            <label class="ns-field">
-+              <span>Temperature</span>
-+              <input
-+                id="ai-temp"
-+                class="ns-input"
-+                type="number"
-+                min="0"
-+                max="2"
-+                step="0.1"
-+              />
-+            </label>
-+            <label class="ns-check">
-+              <input id="ai-autopilot" type="checkbox" />
-+              <span>Autopilot - let NullSec operate the browser</span>
-+            </label>
-+            <label class="ns-check">
-+              <input id="ai-page-context" type="checkbox" />
-+              <span>Include page content and controls in every request</span>
-+            </label>
-+            <div class="ns-row">
-+              <button id="ai-save" class="ns-btn ns-btn-primary">Save</button>
-+              <button id="ai-clear-key" class="ns-btn ns-btn-ghost">
-+                Forget key
-+              </button>
-+            </div>
-+            <div id="ai-status" class="ns-muted"></div>
-+          </div>
-+        </section>
-+
-+        <section class="ns-panel" data-panel="traffic">
-+          <div class="ns-toolbar">
-+            <input
-+              id="traffic-filter"
-+              class="ns-input"
-+              placeholder="Filter host, path, status..."
-+            />
-+            <select id="traffic-method" class="ns-select">
-+              <option value="">All</option>
-+              <option>GET</option>
-+              <option>POST</option>
-+              <option>PUT</option>
-+              <option>PATCH</option>
-+              <option>DELETE</option>
-+            </select>
-+            <button id="traffic-pause" class="ns-btn ns-btn-ghost">
-+              Pause
-+            </button>
-+            <button id="traffic-clear" class="ns-btn ns-btn-ghost">
-+              Clear
-+            </button>
-+          </div>
-+          <div class="ns-traffic-status">
-+            <span class="ns-dot" id="traffic-dot"></span>
-+            <span id="traffic-status-text" class="ns-muted"
-+              >Capturing HTTP traffic in this window</span
-+            >
-+          </div>
-+          <div id="traffic-list" class="ns-traffic-list"></div>
-+          <div id="traffic-detail" class="ns-traffic-detail" hidden></div>
-+        </section>
-+
-+        <section class="ns-panel" data-panel="notes">
-+          <div class="ns-row ns-notes-head">
-+            <label class="ns-field ns-field-inline">
-+              <span>Target</span>
-+              <select id="notes-target" class="ns-select"></select>
-+            </label>
-+            <span class="ns-spacer"></span>
-+            <span id="notes-status" class="ns-muted"></span>
-+          </div>
-+          <textarea
-+            id="notes-editor"
-+            class="ns-notes"
-+            placeholder="Notes for this target - credentials, endpoints, payload ideas, flags..."
-+          ></textarea>
-+          <div class="ns-row">
-+            <button id="notes-export" class="ns-btn ns-btn-ghost">
-+              Export JSON
-+            </button>
-+          </div>
-+        </section>
-+
-+        <section class="ns-panel" data-panel="targets">
-+          <form id="target-form" class="ns-form">
-+            <input
-+              id="target-name"
-+              class="ns-input"
-+              placeholder="Target name (e.g. HTB: Baby Web)"
-+              required
-+            />
-+            <input
-+              id="target-scope"
-+              class="ns-input"
-+              placeholder="Scope: *.htb, 10.10.10.0/24, app.example"
-+            />
-+            <button class="ns-btn ns-btn-primary" type="submit">
-+              Add target
-+            </button>
-+          </form>
-+          <div class="ns-row ns-flag-row">
-+            <select id="flag-target" class="ns-select"></select>
-+            <input id="flag-input" class="ns-input" placeholder="flag{...}" />
-+            <button id="flag-add" class="ns-btn ns-btn-ghost">Add flag</button>
-+          </div>
-+          <div id="targets-list" class="ns-targets"></div>
-+        </section>
-+      </main>
++    <div id="composer">
++      <textarea
++        id="chat-input"
++        rows="2"
++        placeholder="Ask NullSec about this page..."
++      ></textarea>
++      <div id="composer-actions">
++        <moz-button id="chip-report" type="ghost">Flag report</moz-button>
++        <span class="spacer"></span>
++        <moz-button id="chat-stop" type="ghost" hidden>Stop</moz-button>
++        <moz-button id="chat-send" type="primary">Send</moz-button>
++      </div>
 +    </div>
 +  </body>
 +</html>
-\ No newline at end of file
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..0c39a73a
+index 00000000..7ccb305e
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
-@@ -0,0 +1,1739 @@
+@@ -0,0 +1,1130 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++const NullSecStore = ChromeUtils.importESModule(
++  "moz-src:///browser/components/nullsec/NullSecStore.sys.mjs"
++);
 +
 +const KEY_PREF_PREFIX = "browser.nullsec.ai.key.";
 +const KEY_LABEL_PREFIX = "nullsec-ai-key-";
-+const DATA_DIR = () => PathUtils.join(PathUtils.profileDir, "nullsec");
-+const DATA_FILE = () => PathUtils.join(DATA_DIR(), "data.json");
++const REPORT_DIR = () => PathUtils.join(PathUtils.profileDir, "nullsec");
 +
 +const PREF = {
 +  provider: "browser.nullsec.ai.provider",
@@ -1449,10 +937,12 @@ index 00000000..0c39a73a
 +
 +const AGENT_PROTOCOL = [
 +  "You are driving a live browser. You act by replying with a single JSON object and nothing else.",
-+  'To act, reply: {"thought":"short reason","action":{"type":"click|type|scroll|navigate|back|forward|read","selector":"<css selector from the provided controls>","text":"value","submit":true,"url":"https://...","y":600}}',
++  'To act, reply: {"thought":"short reason","action":{"type":"click|type|scroll|navigate|back|forward|read|flag","selector":"<css selector from the provided controls>","text":"value","submit":true,"url":"https://...","y":600,"value":"FLAG{...}","note":"where it was found"}}',
++  'To record a flag, reply: {"thought":"short reason","action":{"type":"flag","value":"FLAG{...}","note":"where it was found"}}',
 +  'When you are done, reply: {"thought":"short reason","answer":"final markdown answer"}',
 +  "Only use selectors listed in INTERACTIVE ELEMENTS. Prefer clicking links and submitting forms over guessing URLs.",
 +  "After each action you will receive the resulting page text and controls. Keep going until the objective is met or you are blocked.",
++  "When you discover a flag, record it with the flag action immediately.",
 +  "Never leave the engagement scope; if a step needs authorization or is ambiguous, stop and ask.",
 +].join("\n");
 +
@@ -1460,7 +950,7 @@ index 00000000..0c39a73a
 +  "You are NullSec, an offensive-security copilot embedded in a browser for authorized CTF competitions and penetration tests.",
 +  "Be concise, technical, and practical. Prefer concrete commands, payloads, and next requests over theory.",
 +  "When shown an HTTP exchange, inspect auth, cookies, parameters, headers, uploads, redirects, and likely vulnerability classes (IDOR, SSRF, SQLi, XSS, auth bypass, path traversal, deserialization, race conditions).",
-+  "You can read the active page and, when Autopilot is enabled, operate the browser yourself: navigate, click, type, and scroll. Keep working until the objective is reached, then report findings and flags in a clean, professional format.",
++  "You can read the active page and, when Autopilot is enabled, operate the browser yourself: navigate, click, type, scroll, and record flags. Keep working until the objective is reached, then report findings and flags in a clean, professional format.",
 +  "Do not help with real-world unauthorized attacks. If scope is unclear, ask for confirmation.",
 +].join(" ");
 +
@@ -1479,19 +969,13 @@ index 00000000..0c39a73a
 +  },
 +};
 +
++const FLAG_PATTERN =
++  /\b(?:flag|HTB|picoCTF|PCTF|DUCTF|THM|NCL|idek|corctf|uiuctf|buckeye|irisctf|grey|hxp|justCTF|maple|amuctf|angstromCTF|bcactf|csaw|dice|downunderctf|easyctf|flare|gctf|hitcon|inctf|kctf|litctf|m0lecon|nitectf|openctf|pbctf|rgbctf|sekaictf|tamuctf|utctf|vsctf|wmctf|zer0pts)\{[^}\n]{1,200}\}/gi;
++
 +const state = {
-+  data: { targets: [], notes: {} },
-+  selectedTargetId: "global",
-+  traffic: [],
-+  trafficSeq: 0,
-+  trafficPaused: false,
-+  trafficFilter: "",
-+  trafficMethod: "",
-+  selectedRequestId: null,
 +  messages: [],
 +  streaming: false,
 +  abortController: null,
-+  notesSaveTimer: null,
 +};
 +
 +const dom = {};
@@ -1698,37 +1182,6 @@ index 00000000..0c39a73a
 +  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 +}
 +
-+function statusClass(status) {
-+  if (!status) {
-+    return "";
-+  }
-+  if (status >= 500) {
-+    return "is-error";
-+  }
-+  if (status >= 400) {
-+    return "is-error";
-+  }
-+  if (status >= 300) {
-+    return "is-redirect";
-+  }
-+  if (status >= 200) {
-+    return "is-ok";
-+  }
-+  return "";
-+}
-+
-+function splitUrl(url) {
-+  try {
-+    const parsed = new URL(url);
-+    return {
-+      host: parsed.host,
-+      path: `${parsed.pathname}${parsed.search}`,
-+    };
-+  } catch {
-+    return { host: url, path: "" };
-+  }
-+}
-+
 +function apiUrl(base, path) {
 +  const clean = base.replace(/\/+$/, "");
 +  if (clean.endsWith("/v1")) {
@@ -1754,7 +1207,6 @@ index 00000000..0c39a73a
 +}
 +
 +async function refreshKeys() {
-+  console.info("NullSec: refreshing API keys");
 +  keyCache.clear();
 +  const store = keyStore();
 +  for (const provider of Object.keys(PROVIDER_DEFAULTS)) {
@@ -1775,7 +1227,6 @@ index 00000000..0c39a73a
 +      console.error("NullSec: failed to decrypt key for", provider, error);
 +    }
 +  }
-+  console.info("NullSec: API keys refreshed", keyCache.size);
 +}
 +
 +function getKey(provider) {
@@ -1809,37 +1260,24 @@ index 00000000..0c39a73a
 +}
 +
 +function getProviderConfig() {
-+  const provider = Services.prefs.getStringPref(
-+    PREF.provider,
-+    "openai"
-+  );
-+  const defaults = PROVIDER_DEFAULTS[provider] || PROVIDER_DEFAULTS.openai;
++  const requested = Services.prefs.getStringPref(PREF.provider, "openai");
++  const provider = PROVIDER_DEFAULTS[requested] ? requested : "openai";
++  const defaults = PROVIDER_DEFAULTS[provider];
 +  return {
 +    provider,
 +    baseurl: Services.prefs.getStringPref(PREF.baseurl, defaults.baseurl),
 +    model: Services.prefs.getStringPref(PREF.model, defaults.model),
 +    temperature: Services.prefs.getStringPref(PREF.temperature, "0.3"),
-+    system: Services.prefs.getStringPref(PREF.system, DEFAULT_SYSTEM),
++    system: Services.prefs.getStringPref(PREF.system, ""),
 +  };
-+}
-+
-+function getSelectedTarget() {
-+  if (state.selectedTargetId === "global") {
-+    return null;
-+  }
-+  return state.data.targets.find(t => t.id === state.selectedTargetId) || null;
 +}
 +
 +function buildSystemPrompt(agent = false) {
 +  const cfg = getProviderConfig();
 +  const tab = getActiveTabInfo();
-+  const target = getSelectedTarget();
 +  let prompt = cfg.system || DEFAULT_SYSTEM;
 +  if (tab.url) {
 +    prompt += `\n\n[Current tab]\nTitle: ${tab.title}\nURL: ${tab.url}`;
-+  }
-+  if (target) {
-+    prompt += `\n\n[Selected target]\nName: ${target.name}\nScope: ${target.scope || "unspecified"}`;
 +  }
 +  if (agent) {
 +    prompt += `\n\n${AGENT_PROTOCOL}`;
@@ -1847,233 +1285,49 @@ index 00000000..0c39a73a
 +  return prompt;
 +}
 +
-+async function loadData() {
-+  try {
-+    const raw = await IOUtils.readUTF8(DATA_FILE());
-+    const parsed = JSON.parse(raw);
-+    state.data.targets = Array.isArray(parsed.targets) ? parsed.targets : [];
-+    state.data.notes =
-+      parsed.notes && typeof parsed.notes === "object" ? parsed.notes : {};
-+  } catch {
-+    state.data = { targets: [], notes: {} };
-+  }
-+}
-+
-+let saveTimer = null;
-+function scheduleSave() {
-+  clearTimeout(saveTimer);
-+  saveTimer = setTimeout(saveData, 350);
-+}
-+
-+async function saveData() {
-+  try {
-+    await IOUtils.makeDirectory(DATA_DIR(), { ignoreExisting: true });
-+    await IOUtils.writeUTF8(
-+      DATA_FILE(),
-+      JSON.stringify(state.data, null, 2)
-+    );
-+  } catch (error) {
-+    setNotesStatus(`Save failed: ${error.message}`);
-+  }
-+}
-+
-+function setNotesStatus(text) {
-+  if (dom.notesStatus) {
-+    dom.notesStatus.textContent = text;
-+  }
-+}
-+
-+function syncTargetSelects() {
-+  const options = [
-+    { id: "global", name: "Global" },
-+    ...state.data.targets.map(t => ({ id: t.id, name: t.name })),
-+  ];
-+  for (const select of [dom.notesTarget, dom.flagTarget]) {
-+    if (!select) {
-+      continue;
-+    }
-+    select.replaceChildren();
-+    for (const option of options) {
-+      const el = document.createElement("option");
-+      el.value = option.id;
-+      el.textContent = option.name;
-+      select.appendChild(el);
-+    }
-+    if (options.some(o => o.id === state.selectedTargetId)) {
-+      select.value = state.selectedTargetId;
-+    }
-+  }
-+}
-+
-+function renderTargets() {
-+  if (!dom.targetsList) {
-+    return;
-+  }
-+  dom.targetsList.replaceChildren();
-+  if (!state.data.targets.length) {
-+    const empty = document.createElement("div");
-+    empty.className = "ns-empty-inline";
-+    empty.textContent = "No targets yet. Add one above.";
-+    dom.targetsList.appendChild(empty);
-+    return;
-+  }
-+  for (const target of state.data.targets) {
-+    const card = document.createElement("div");
-+    card.className = "ns-target";
-+    if (target.id === state.selectedTargetId) {
-+      card.style.borderColor = "var(--ns-accent)";
-+    }
-+
-+    const head = document.createElement("div");
-+    head.className = "ns-target-head";
-+    const name = document.createElement("span");
-+    name.className = "ns-target-name";
-+    name.textContent = target.name;
-+    const status = document.createElement("button");
-+    status.className = `ns-status${target.owned ? " is-owned" : ""}`;
-+    status.textContent = target.owned ? "owned" : "active";
-+    status.title = "Toggle target status";
-+    status.addEventListener("click", () => {
-+      target.owned = !target.owned;
-+      scheduleSave();
-+      renderTargets();
-+    });
-+    head.append(name, status);
-+    card.appendChild(head);
-+
-+    if (target.scope) {
-+      const scope = document.createElement("div");
-+      scope.className = "ns-target-scope";
-+      scope.textContent = target.scope;
-+      card.appendChild(scope);
-+    }
-+
-+    const flags = document.createElement("div");
-+    flags.className = "ns-target-flags";
-+    for (const flag of target.flags || []) {
-+      const chip = document.createElement("span");
-+      chip.className = "ns-flag";
-+      chip.textContent = flag;
-+      flags.appendChild(chip);
-+    }
-+    if (flags.childElementCount) {
-+      card.appendChild(flags);
-+    }
-+
-+    const actions = document.createElement("div");
-+    actions.className = "ns-detail-actions";
-+    const select = document.createElement("button");
-+    select.className = "ns-btn ns-btn-ghost";
-+    select.textContent = "Notes";
-+    select.addEventListener("click", () => {
-+      state.selectedTargetId = target.id;
-+      syncTargetSelects();
-+      loadNotesForTarget();
-+      switchTab("notes");
-+    });
-+    const remove = document.createElement("button");
-+    remove.className = "ns-btn ns-btn-ghost";
-+    remove.textContent = "Delete";
-+    remove.addEventListener("click", () => {
-+      if (!window.confirm(`Delete target "${target.name}"?`)) {
-+        return;
-+      }
-+      state.data.targets = state.data.targets.filter(t => t.id !== target.id);
-+      delete state.data.notes[target.id];
-+      if (state.selectedTargetId === target.id) {
-+        state.selectedTargetId = "global";
-+      }
-+      scheduleSave();
-+      syncTargetSelects();
-+      renderTargets();
-+      loadNotesForTarget();
-+    });
-+    actions.append(select, remove);
-+    card.appendChild(actions);
-+
-+    dom.targetsList.appendChild(card);
-+  }
-+}
-+
-+function loadNotesForTarget() {
-+  if (!dom.notesEditor) {
-+    return;
-+  }
-+  dom.notesEditor.value = state.data.notes[state.selectedTargetId] || "";
-+  setNotesStatus("");
-+}
-+
-+function scheduleNotesSave() {
-+  clearTimeout(state.notesSaveTimer);
-+  state.notesSaveTimer = setTimeout(() => {
-+    state.data.notes[state.selectedTargetId] = dom.notesEditor.value;
-+    scheduleSave();
-+    setNotesStatus("Saved");
-+    setTimeout(() => setNotesStatus(""), 1200);
-+  }, 400);
-+}
-+
-+function switchTab(tab) {
-+  for (const button of document.querySelectorAll(".ns-tab")) {
-+    button.classList.toggle("is-active", button.dataset.tab === tab);
-+  }
-+  for (const panel of document.querySelectorAll(".ns-panel")) {
-+    panel.classList.toggle("is-active", panel.dataset.panel === tab);
-+  }
-+  if (tab === "traffic") {
-+    renderTraffic();
-+  }
-+}
-+
 +function updateContext() {
 +  const tab = getActiveTabInfo();
-+  if (!dom.aiContextText) {
++  if (!dom.contextTitle) {
 +    return;
 +  }
 +  if (!tab.url) {
-+    dom.aiContextText.textContent = "No active tab";
-+    dom.aiContextText.title = "";
++    dom.contextTitle.textContent = "No active tab";
++    dom.contextUrl.textContent = "";
++    dom.contextUrl.title = "";
 +    return;
 +  }
-+  const label = tab.title ? `${tab.title}` : tab.url;
-+  dom.aiContextText.textContent = label;
-+  dom.aiContextText.title = `${tab.title}\n${tab.url}`;
++  dom.contextTitle.textContent = tab.title || tab.url;
++  dom.contextTitle.title = tab.title || tab.url;
++  dom.contextUrl.textContent = tab.url;
++  dom.contextUrl.title = tab.url;
 +}
 +
 +function setStreaming(value) {
 +  state.streaming = value;
-+  dom.chatSend.disabled = value;
-+  dom.chatStop.hidden = !value;
-+}
-+
-+function clearChat() {
-+  state.messages = [];
-+  for (const node of document.querySelectorAll(".ns-msg")) {
-+    node.remove();
-+  }
-+  dom.chatEmpty.hidden = false;
++  dom.send.disabled = value;
++  dom.stop.hidden = !value;
 +}
 +
 +function scrollChat() {
-+  dom.chatMessages.scrollTop = dom.chatMessages.scrollHeight;
++  dom.messageContainer.scrollTop = dom.messageContainer.scrollHeight;
 +}
 +
 +function addMessageElement(message, streaming = false) {
-+  dom.chatEmpty.hidden = true;
++  dom.empty.hidden = true;
 +  const wrapper = document.createElement("div");
-+  wrapper.className = `ns-msg is-${message.role}`;
++  wrapper.className = `message is-${message.role}`;
 +  const role = document.createElement("div");
-+  role.className = "ns-msg-role";
++  role.className = "message-role";
 +  role.textContent = message.role === "user" ? "You" : "NullSec";
 +  const body = document.createElement("div");
-+  body.className = "ns-msg-body";
++  body.className = "message-body";
 +  if (message.role === "assistant" && !streaming) {
 +    body.innerHTML = renderMarkdown(message.content);
 +  } else {
 +    body.textContent = message.content;
 +  }
 +  wrapper.append(role, body);
-+  dom.chatMessages.appendChild(wrapper);
++  dom.messages.appendChild(wrapper);
 +  scrollChat();
 +  return body;
 +}
@@ -2185,11 +1439,11 @@ index 00000000..0c39a73a
 +  const cfg = getProviderConfig();
 +  const key = getKey(cfg.provider);
 +  if (!key && cfg.provider !== "compatible") {
-+    dom.aiSettings.hidden = false;
-+    dom.aiStatus.textContent = "Add an API key for this provider.";
++    dom.settings.hidden = false;
++    dom.status.textContent = "Add an API key for this provider.";
 +    return;
 +  }
-+  dom.aiSettings.hidden = true;
++  dom.settings.hidden = true;
 +
 +  let userContent = trimmed;
 +  if (getBoolPref(PREF.pageContext, true)) {
@@ -2213,7 +1467,7 @@ index 00000000..0c39a73a
 +
 +  state.messages.push({ role: "user", content: userContent });
 +  addMessageElement({ role: "user", content: trimmed });
-+  dom.chatInput.value = "";
++  dom.input.value = "";
 +
 +  const assistant = { role: "assistant", content: "" };
 +  state.messages.push(assistant);
@@ -2240,6 +1494,7 @@ index 00000000..0c39a73a
 +      await streamOpenAI(args);
 +    }
 +    body.innerHTML = renderMarkdown(assistant.content);
++    captureFlags(assistant.content, getActiveTabInfo().url);
 +  } catch (error) {
 +    if (error.name === "AbortError") {
 +      assistant.content += "\n\n_[stopped]_";
@@ -2315,6 +1570,21 @@ index 00000000..0c39a73a
 +      return { ok: true };
 +    case "read":
 +      return { ok: true };
++    case "flag": {
++      const value = String(action.value || "").trim();
++      if (!value) {
++        return { ok: false, error: "missing flag value" };
++      }
++      const tab = getActiveTabInfo();
++      const entry = NullSecStore.addFlag(
++        value,
++        tab.url,
++        action.note || "Recorded by NullSec"
++      );
++      return entry
++        ? { ok: true, flag: value }
++        : { ok: true, duplicate: true, flag: value };
++    }
 +    case "click":
 +    case "type":
 +    case "scroll": {
@@ -2380,18 +1650,30 @@ index 00000000..0c39a73a
 +      return "Going forward";
 +    case "read":
 +      return "Reading the page";
++    case "flag":
++      return `Recording flag ${action.value}`;
 +    default:
 +      return `Action: ${action.type}`;
 +  }
 +}
 +
 +function addStepElement(text) {
-+  dom.chatEmpty.hidden = true;
++  dom.empty.hidden = true;
 +  const node = document.createElement("div");
-+  node.className = "ns-step";
++  node.className = "step";
 +  node.textContent = text;
-+  dom.chatMessages.appendChild(node);
++  dom.messages.appendChild(node);
 +  scrollChat();
++}
++
++function captureFlags(text, url = "") {
++  if (!text) {
++    return;
++  }
++  const matches = String(text).match(FLAG_PATTERN) || [];
++  for (const value of matches) {
++    NullSecStore.addFlag(value, url, "Detected in page or model output");
++  }
 +}
 +
 +async function completeChat({ cfg, key, messages, signal, system }) {
@@ -2418,15 +1700,15 @@ index 00000000..0c39a73a
 +  const cfg = getProviderConfig();
 +  const key = getKey(cfg.provider);
 +  if (!key && cfg.provider !== "compatible") {
-+    dom.aiSettings.hidden = false;
-+    dom.aiStatus.textContent = "Add an API key for this provider.";
++    dom.settings.hidden = false;
++    dom.status.textContent = "Add an API key for this provider.";
 +    return;
 +  }
-+  dom.aiSettings.hidden = true;
++  dom.settings.hidden = true;
 +
 +  state.messages.push({ role: "user", content: text.trim() });
 +  addMessageElement({ role: "user", content: text.trim() });
-+  dom.chatInput.value = "";
++  dom.input.value = "";
 +
 +  const assistant = { role: "assistant", content: "" };
 +  const body = addMessageElement(assistant, true);
@@ -2455,6 +1737,9 @@ index 00000000..0c39a73a
 +      const result = await executeAction(parsed.action);
 +      await sleep(900);
 +      const page = await collectPageContext();
++      if (page?.text) {
++        captureFlags(page.text, page.url);
++      }
 +      observation = [
 +        `[Observation after step ${step}]`,
 +        `Action: ${JSON.stringify(parsed.action)}`,
@@ -2470,6 +1755,7 @@ index 00000000..0c39a73a
 +        ? "Done."
 +        : "_Stopped after reaching the step limit._";
 +    }
++    captureFlags(assistant.content, getActiveTabInfo().url);
 +    body.innerHTML = renderMarkdown(assistant.content);
 +  } catch (error) {
 +    if (error.name === "AbortError") {
@@ -2489,12 +1775,9 @@ index 00000000..0c39a73a
 +
 +function buildReportMarkdown() {
 +  const now = new Date();
-+  const targets = state.data.targets || [];
-+  const flagged = targets.filter(target => (target.flags || []).length);
-+  const totalFlags = targets.reduce(
-+    (sum, target) => sum + (target.flags || []).length,
-+    0
-+  );
++  const flags = NullSecStore.getFlags();
++  const traffic = NullSecStore.getTraffic();
++  const tab = getActiveTabInfo();
 +  const lines = [];
 +  lines.push("# NullSec Engagement Report");
 +  lines.push("");
@@ -2502,50 +1785,32 @@ index 00000000..0c39a73a
 +  lines.push("");
 +  lines.push("## Summary");
 +  lines.push("");
-+  lines.push(`- Targets: ${targets.length}`);
-+  lines.push(`- Targets with flags: ${flagged.length}`);
-+  lines.push(`- Flags recovered: ${totalFlags}`);
-+  lines.push(`- Requests captured this session: ${state.traffic.length}`);
++  lines.push(`- Active tab: ${tab.url || "none"}`);
++  lines.push(`- Flags recovered: ${flags.length}`);
++  lines.push(`- Requests captured this session: ${traffic.length}`);
 +  lines.push("");
 +  lines.push("## Flags");
 +  lines.push("");
-+  if (!flagged.length) {
++  if (!flags.length) {
 +    lines.push("_No flags recorded._");
 +  } else {
-+    lines.push("| Target | Scope | Flag |");
++    lines.push("| Flag | Source | Note |");
 +    lines.push("| --- | --- | --- |");
-+    for (const target of flagged) {
-+      for (const flag of target.flags) {
-+        lines.push(`| ${target.name} | ${target.scope || "-"} | \`${flag}\` |`);
-+      }
++    for (const flag of flags) {
++      lines.push(
++        `| \`${flag.value}\` | ${flag.url || "-"} | ${flag.note || "-"} |`
++      );
 +    }
 +  }
 +  lines.push("");
-+  lines.push("## Targets");
-+  lines.push("");
-+  for (const target of targets) {
-+    lines.push(`### ${target.name}`);
-+    lines.push("");
-+    lines.push(`- Scope: ${target.scope || "unspecified"}`);
-+    lines.push(`- Status: ${target.owned ? "OWNED" : "in progress"}`);
-+    lines.push(
-+      `- Flags: ${(target.flags || []).map(flag => `\`${flag}\``).join(", ") || "none"}`
-+    );
-+    const notes = (state.data.notes[target.id] || "").trim();
-+    if (notes) {
-+      lines.push("");
-+      lines.push(notes);
-+    }
-+    lines.push("");
-+  }
 +  lines.push("## Captured Requests");
 +  lines.push("");
-+  if (!state.traffic.length) {
++  if (!traffic.length) {
 +    lines.push("_No requests captured during this session._");
 +  } else {
 +    lines.push("| Method | URL | Status | Type |");
 +    lines.push("| --- | --- | --- | --- |");
-+    for (const entry of state.traffic.slice(-100)) {
++    for (const entry of traffic.slice(-100)) {
 +      lines.push(
 +        `| ${entry.method} | ${entry.url} | ${entry.status || "-"} | ${entry.type || "-"} |`
 +      );
@@ -2558,33 +1823,33 @@ index 00000000..0c39a73a
 +}
 +
 +function generateReport() {
-+  switchTab("ai");
++  dom.settings.hidden = true;
 +  const markdown = buildReportMarkdown();
 +  const wrapper = document.createElement("div");
-+  wrapper.className = "ns-msg is-assistant";
++  wrapper.className = "message is-assistant";
 +  const role = document.createElement("div");
-+  role.className = "ns-msg-role";
++  role.className = "message-role";
 +  role.textContent = "Flag report";
 +  const report = document.createElement("div");
-+  report.className = "ns-report";
++  report.className = "message-body report";
 +  report.innerHTML = renderMarkdown(markdown);
 +  const actions = document.createElement("div");
-+  actions.className = "ns-report-actions";
-+  const copy = document.createElement("button");
-+  copy.className = "ns-mini-btn";
++  actions.className = "report-actions";
++  const copy = document.createElement("moz-button");
++  copy.setAttribute("type", "ghost");
 +  copy.textContent = "Copy";
 +  copy.addEventListener("click", () => {
 +    copyText(markdown);
 +    copy.textContent = "Copied";
 +    setTimeout(() => (copy.textContent = "Copy"), 1500);
 +  });
-+  const save = document.createElement("button");
-+  save.className = "ns-mini-btn";
++  const save = document.createElement("moz-button");
++  save.setAttribute("type", "ghost");
 +  save.textContent = "Save .md";
 +  save.addEventListener("click", async () => {
 +    try {
-+      const path = PathUtils.join(DATA_DIR(), "nullsec-report.md");
-+      await IOUtils.makeDirectory(DATA_DIR(), { ignoreExisting: true });
++      const path = PathUtils.join(REPORT_DIR(), "nullsec-report.md");
++      await IOUtils.makeDirectory(REPORT_DIR(), { ignoreExisting: true });
 +      await IOUtils.writeUTF8(path, markdown);
 +      save.textContent = "Saved";
 +      save.title = path;
@@ -2596,309 +1861,9 @@ index 00000000..0c39a73a
 +  });
 +  actions.append(copy, save);
 +  wrapper.append(role, report, actions);
-+  dom.chatEmpty.hidden = true;
-+  dom.chatMessages.appendChild(wrapper);
++  dom.empty.hidden = true;
++  dom.messages.appendChild(wrapper);
 +  scrollChat();
-+}
-+
-+function sendRequestToAI(entry) {
-+  switchTab("ai");
-+  const requestHeaders = Object.entries(entry.reqHeaders || {})
-+    .map(([name, value]) => `${name}: ${value}`)
-+    .join("\n");
-+  const responseHeaders = Object.entries(entry.headers || {})
-+    .map(([name, value]) => `${name}: ${value}`)
-+    .join("\n");
-+  const prompt = [
-+    "Analyze this HTTP exchange for a CTF. Identify auth/session handling, interesting parameters, likely vulnerability classes, and concrete next requests to try.",
-+    "",
-+    `${entry.method} ${entry.url}`,
-+    `Status: ${entry.status} ${entry.statusText || ""}`.trim(),
-+    "",
-+    "Request headers:",
-+    requestHeaders || "(none captured)",
-+    "",
-+    "Response headers:",
-+    responseHeaders || "(none captured)",
-+  ].join("\n");
-+  dom.chatInput.value = prompt;
-+  dom.chatInput.focus();
-+}
-+
-+function curlFor(entry) {
-+  const parts = [`curl -i -X ${entry.method} '${entry.url}'`];
-+  for (const [name, value] of Object.entries(entry.reqHeaders || {})) {
-+    const lower = name.toLowerCase();
-+    if (["host", "content-length", "connection", "accept-encoding"].includes(lower)) {
-+      continue;
-+    }
-+    parts.push(`  -H '${name}: ${String(value).replaceAll("'", "'\\''")}'`);
-+  }
-+  return parts.join(" \\\n");
-+}
-+
-+function renderTrafficDetail(entry) {
-+  if (!dom.trafficDetail) {
-+    return;
-+  }
-+  dom.trafficDetail.hidden = false;
-+  dom.trafficDetail.replaceChildren();
-+
-+  const title = document.createElement("div");
-+  title.className = "ns-detail-title";
-+  title.textContent = `${entry.method} ${entry.url}`;
-+  dom.trafficDetail.appendChild(title);
-+
-+  const summary = document.createElement("div");
-+  summary.className = "ns-muted";
-+  summary.textContent = `${entry.status} ${entry.statusText || ""} - ${entry.type || "unknown"} - ${formatBytes(entry.size)}`;
-+  dom.trafficDetail.appendChild(summary);
-+
-+  const requestHeaders = document.createElement("div");
-+  requestHeaders.className = "ns-headers";
-+  requestHeaders.textContent = Object.entries(entry.reqHeaders || {})
-+    .map(([name, value]) => `${name}: ${value}`)
-+    .join("\n");
-+  dom.trafficDetail.appendChild(requestHeaders);
-+
-+  const responseHeaders = document.createElement("div");
-+  responseHeaders.className = "ns-headers";
-+  responseHeaders.textContent = Object.entries(entry.headers || {})
-+    .map(([name, value]) => `${name}: ${value}`)
-+    .join("\n");
-+  dom.trafficDetail.appendChild(responseHeaders);
-+
-+  const actions = document.createElement("div");
-+  actions.className = "ns-detail-actions";
-+
-+  const copy = document.createElement("button");
-+  copy.className = "ns-btn ns-btn-ghost";
-+  copy.textContent = "Copy as curl";
-+  copy.addEventListener("click", () => {
-+    copyText(curlFor(entry));
-+    copy.textContent = "Copied";
-+    setTimeout(() => {
-+      copy.textContent = "Copy as curl";
-+    }, 1200);
-+  });
-+
-+  const ai = document.createElement("button");
-+  ai.className = "ns-btn ns-btn-primary";
-+  ai.textContent = "Send to AI";
-+  ai.addEventListener("click", () => sendRequestToAI(entry));
-+
-+  const close = document.createElement("button");
-+  close.className = "ns-btn ns-btn-ghost";
-+  close.textContent = "Close";
-+  close.addEventListener("click", () => {
-+    dom.trafficDetail.hidden = true;
-+    state.selectedRequestId = null;
-+    renderTraffic();
-+  });
-+
-+  const replay = document.createElement("button");
-+  replay.className = "ns-btn ns-btn-ghost";
-+  replay.textContent = "Replay";
-+  replay.addEventListener("click", async () => {
-+    replay.disabled = true;
-+    replay.textContent = "Replaying...";
-+    const output = document.createElement("div");
-+    output.className = "ns-detail-output";
-+    dom.trafficDetail.appendChild(output);
-+    try {
-+      const headers = {};
-+      for (const [name, value] of Object.entries(entry.reqHeaders || {})) {
-+        const lower = name.toLowerCase();
-+        if (["host", "content-length", "connection", "accept-encoding"].includes(lower)) {
-+          continue;
-+        }
-+        headers[name] = value;
-+      }
-+      const started = performance.now();
-+      const response = await fetch(entry.url, {
-+        method: entry.method,
-+        headers,
-+        redirect: "manual",
-+        credentials: "omit",
-+      });
-+      const elapsed = Math.round(performance.now() - started);
-+      const text = await response.text();
-+      output.textContent = `${response.status} ${response.statusText} - ${elapsed} ms\n\n${text.slice(0, 8000)}`;
-+    } catch (error) {
-+      output.textContent = `Replay failed: ${error.message}`;
-+    } finally {
-+      replay.disabled = false;
-+      replay.textContent = "Replay";
-+    }
-+  });
-+
-+  actions.append(copy, replay, ai, close);
-+  dom.trafficDetail.appendChild(actions);
-+  dom.trafficDetail.scrollIntoView({ block: "nearest" });
-+}
-+
-+function filteredTraffic() {
-+  const filter = state.trafficFilter.toLowerCase();
-+  return state.traffic.filter(entry => {
-+    if (state.trafficMethod && entry.method !== state.trafficMethod) {
-+      return false;
-+    }
-+    if (!filter) {
-+      return true;
-+    }
-+    return `${entry.method} ${entry.url} ${entry.status}`
-+      .toLowerCase()
-+      .includes(filter);
-+  });
-+}
-+
-+let trafficRenderQueued = false;
-+function scheduleTrafficRender() {
-+  if (trafficRenderQueued) {
-+    return;
-+  }
-+  trafficRenderQueued = true;
-+  requestAnimationFrame(() => {
-+    trafficRenderQueued = false;
-+    renderTraffic();
-+  });
-+}
-+
-+function renderTraffic() {
-+  if (!dom.trafficList) {
-+    return;
-+  }
-+  const entries = filteredTraffic().slice(0, 300);
-+  dom.trafficList.replaceChildren();
-+  if (!entries.length) {
-+    const empty = document.createElement("div");
-+    empty.className = "ns-empty-inline";
-+    empty.textContent = state.traffic.length
-+      ? "No requests match this filter."
-+      : "Waiting for HTTP traffic...";
-+    dom.trafficList.appendChild(empty);
-+  }
-+  for (const entry of entries) {
-+    const { host, path } = splitUrl(entry.url);
-+    const row = document.createElement("div");
-+    row.className = "ns-req";
-+    if (entry.id === state.selectedRequestId) {
-+      row.classList.add("is-selected");
-+    }
-+
-+    const method = document.createElement("span");
-+    method.className = `ns-method is-${entry.method.toLowerCase()}`;
-+    method.textContent = entry.method;
-+
-+    const hostEl = document.createElement("span");
-+    hostEl.className = "ns-req-host";
-+    hostEl.textContent = host;
-+
-+    const status = document.createElement("span");
-+    status.className = `ns-req-status ${statusClass(entry.status)}`;
-+    status.textContent = entry.status || "";
-+
-+    const pathEl = document.createElement("span");
-+    pathEl.className = "ns-req-path";
-+    pathEl.textContent = path || "/";
-+
-+    row.append(method, hostEl, status, pathEl);
-+    row.addEventListener("click", () => {
-+      state.selectedRequestId = entry.id;
-+      renderTraffic();
-+      renderTrafficDetail(entry);
-+    });
-+    dom.trafficList.appendChild(row);
-+  }
-+  dom.trafficCount.textContent = String(state.traffic.length);
-+}
-+
-+const trafficObserver = {
-+  observe(subject, topic) {
-+    if (state.trafficPaused) {
-+      return;
-+    }
-+    let channel;
-+    try {
-+      channel = subject.QueryInterface(Ci.nsIHttpChannel);
-+    } catch {
-+      return;
-+    }
-+    let url = "";
-+    try {
-+      url = channel.URI?.spec || "";
-+    } catch {
-+      return;
-+    }
-+    if (!/^https?:/i.test(url)) {
-+      return;
-+    }
-+    let entry;
-+    try {
-+      entry = {
-+        id: ++state.trafficSeq,
-+        ts: Date.now(),
-+        method: channel.requestMethod || "GET",
-+        url,
-+        status: channel.responseStatus || 0,
-+        statusText: channel.responseStatusText || "",
-+        type: channel.getResponseHeader("content-type") || "",
-+        size: channel.contentLength,
-+        reqHeaders: {},
-+        headers: {},
-+        cached: topic === "http-on-examine-cached-response",
-+      };
-+      channel.visitRequestHeaders({
-+        visitHeader(name, value) {
-+          entry.reqHeaders[name] = value;
-+        },
-+      });
-+      channel.visitResponseHeaders({
-+        visitHeader(name, value) {
-+          entry.headers[name] = value;
-+        },
-+      });
-+    } catch {
-+      return;
-+    }
-+    state.traffic.unshift(entry);
-+    if (state.traffic.length > 800) {
-+      state.traffic.length = 800;
-+    }
-+    if (state.selectedRequestId === null && dom.trafficDetail && !dom.trafficDetail.hidden) {
-+      dom.trafficDetail.hidden = true;
-+    }
-+    scheduleTrafficRender();
-+  },
-+};
-+
-+const TRAFFIC_TOPICS = [
-+  "http-on-examine-response",
-+  "http-on-examine-cached-response",
-+  "http-on-examine-merged-response",
-+];
-+
-+function startTraffic() {
-+  for (const topic of TRAFFIC_TOPICS) {
-+    Services.obs.addObserver(trafficObserver, topic);
-+  }
-+}
-+
-+function stopTraffic() {
-+  for (const topic of TRAFFIC_TOPICS) {
-+    try {
-+      Services.obs.removeObserver(trafficObserver, topic);
-+    } catch {}
-+  }
-+}
-+
-+function setTrafficPaused(paused) {
-+  state.trafficPaused = paused;
-+  dom.trafficPause.textContent = paused ? "Resume" : "Pause";
-+  dom.trafficDot.classList.toggle("is-paused", paused);
-+  dom.trafficStatusText.textContent = paused
-+    ? "Capture paused"
-+    : "Capturing HTTP traffic in this window";
 +}
 +
 +function applyProviderDefaults(provider) {
@@ -2906,218 +1871,131 @@ index 00000000..0c39a73a
 +  if (!defaults) {
 +    return;
 +  }
-+  dom.aiBaseurl.value = defaults.baseurl;
-+  dom.aiModel.value = defaults.model;
++  dom.baseurl.value = defaults.baseurl;
++  dom.model.value = defaults.model;
 +}
 +
 +function loadSettingsIntoUI() {
 +  const cfg = getProviderConfig();
-+  dom.aiProvider.value = cfg.provider;
-+  dom.aiBaseurl.value = cfg.baseurl;
-+  dom.aiModel.value = cfg.model;
-+  dom.aiTemp.value = cfg.temperature;
++  dom.provider.value = cfg.provider;
++  dom.baseurl.value = cfg.baseurl;
++  dom.model.value = cfg.model;
++  dom.temp.value = cfg.temperature;
++  dom.system.value = cfg.system;
 +  const key = getKey(cfg.provider);
-+  dom.aiKey.value = "";
-+  dom.aiKey.placeholder = key
-+    ? "stored with OS encryption (enter to replace)"
-+    : "stored with OS encryption";
-+  dom.aiAutopilot.checked = getBoolPref(PREF.autopilot, false);
-+  dom.aiPageContext.checked = getBoolPref(PREF.pageContext, true);
-+  dom.aiModelLabel.textContent = `${cfg.provider} - ${cfg.model}`;
++  dom.key.value = "";
++  dom.key.placeholder = key
++    ? "Stored with OS encryption (enter to replace)"
++    : "Stored with OS encryption";
++  dom.autopilot.pressed = getBoolPref(PREF.autopilot, false);
++  dom.pageContext.pressed = getBoolPref(PREF.pageContext, true);
 +}
 +
 +async function saveSettingsFromUI() {
-+  const provider = dom.aiProvider.value;
-+  const baseurl = dom.aiBaseurl.value.trim() || PROVIDER_DEFAULTS[provider].baseurl;
-+  const model = dom.aiModel.value.trim() || PROVIDER_DEFAULTS[provider].model;
-+  const temperature = dom.aiTemp.value.trim() || "0.3";
++  const provider = dom.provider.value;
++  const defaults = PROVIDER_DEFAULTS[provider] || PROVIDER_DEFAULTS.openai;
++  const baseurl = dom.baseurl.value.trim() || defaults.baseurl;
++  const model = dom.model.value.trim() || defaults.model;
++  const rawTemp = dom.temp.value;
++  const parsedTemp = Number(rawTemp);
++  const temperature =
++    rawTemp === "" || rawTemp == null || Number.isNaN(parsedTemp)
++      ? "0.3"
++      : String(parsedTemp);
++  const system = dom.system.value.trim();
 +  Services.prefs.setStringPref(PREF.provider, provider);
 +  Services.prefs.setStringPref(PREF.baseurl, baseurl);
 +  Services.prefs.setStringPref(PREF.model, model);
 +  Services.prefs.setStringPref(PREF.temperature, temperature);
-+  Services.prefs.setBoolPref(PREF.autopilot, dom.aiAutopilot.checked);
-+  Services.prefs.setBoolPref(PREF.pageContext, dom.aiPageContext.checked);
++  Services.prefs.setStringPref(PREF.system, system);
++  Services.prefs.setBoolPref(PREF.autopilot, dom.autopilot.pressed);
++  Services.prefs.setBoolPref(PREF.pageContext, dom.pageContext.pressed);
 +  let message = "Saved.";
-+  if (dom.aiKey.value) {
-+    const stored = await setKey(provider, dom.aiKey.value);
++  if (dom.key.value) {
++    const stored = await setKey(provider, dom.key.value);
 +    message = stored
 +      ? "Saved. API key stored with OS encryption."
 +      : "Settings saved, but the API key could not be stored.";
-+    dom.aiKey.value = "";
++    dom.key.value = "";
 +  }
-+  dom.aiStatus.textContent = message;
-+  dom.aiModelLabel.textContent = `${provider} - ${model}`;
 +  loadSettingsIntoUI();
++  dom.status.textContent = message;
 +}
 +
 +function initChrome() {
-+  dom.chatMessages = $("chat-messages");
-+  dom.chatEmpty = $("chat-empty");
-+  dom.chatInput = $("chat-input");
-+  dom.chatSend = $("chat-send");
-+  dom.chatStop = $("chat-stop");
-+  dom.aiContextText = $("ai-context-text");
-+  dom.aiSettings = $("ai-settings");
-+  dom.aiProvider = $("ai-provider");
-+  dom.aiBaseurl = $("ai-baseurl");
-+  dom.aiModel = $("ai-model");
-+  dom.aiKey = $("ai-key");
-+  dom.aiTemp = $("ai-temp");
-+  dom.aiStatus = $("ai-status");
-+  dom.aiModelLabel = $("ai-model-label");
-+  dom.aiAutopilot = $("ai-autopilot");
-+  dom.aiPageContext = $("ai-page-context");
-+  dom.trafficList = $("traffic-list");
-+  dom.trafficDetail = $("traffic-detail");
-+  dom.trafficCount = $("traffic-count");
-+  dom.trafficFilter = $("traffic-filter");
-+  dom.trafficMethod = $("traffic-method");
-+  dom.trafficPause = $("traffic-pause");
-+  dom.trafficDot = $("traffic-dot");
-+  dom.trafficStatusText = $("traffic-status-text");
-+  dom.notesEditor = $("notes-editor");
-+  dom.notesTarget = $("notes-target");
-+  dom.notesStatus = $("notes-status");
-+  dom.flagTarget = $("flag-target");
-+  dom.flagInput = $("flag-input");
-+  dom.targetsList = $("targets-list");
++  dom.provider = $("header-provider");
++  dom.traffic = $("header-traffic");
++  dom.settingsButton = $("header-settings");
++  dom.close = $("header-close");
++  dom.contextTitle = $("ai-context-title");
++  dom.contextUrl = $("ai-context-url");
++  dom.settings = $("settings");
++  dom.baseurl = $("ai-baseurl");
++  dom.model = $("ai-model");
++  dom.key = $("ai-key");
++  dom.temp = $("ai-temp");
++  dom.system = $("ai-system");
++  dom.autopilot = $("ai-autopilot");
++  dom.pageContext = $("ai-page-context");
++  dom.status = $("ai-status");
++  dom.save = $("ai-save");
++  dom.clearKey = $("ai-clear-key");
++  dom.messageContainer = $("message-container");
++  dom.messages = $("chat-messages");
++  dom.empty = $("chat-empty");
++  dom.input = $("chat-input");
++  dom.send = $("chat-send");
++  dom.stop = $("chat-stop");
++  dom.report = $("chip-report");
 +
-+  $("ns-close").addEventListener("click", () => {
++  dom.close.addEventListener("click", () => {
 +    getBrowserWindow()?.SidebarController?.hide();
 +  });
-+
-+  for (const button of document.querySelectorAll(".ns-tab")) {
-+    button.addEventListener("click", () => switchTab(button.dataset.tab));
-+  }
-+
-+  for (const chip of document.querySelectorAll(".ns-chip")) {
-+    chip.addEventListener("click", () => {
-+      if (chip.id === "chip-report") {
-+        generateReport();
-+        return;
-+      }
-+      dom.chatInput.value = chip.dataset.prompt || "";
-+      dom.chatInput.focus();
-+    });
-+  }
-+
-+  dom.aiAutopilot.addEventListener("change", () => {
-+    Services.prefs.setBoolPref(PREF.autopilot, dom.aiAutopilot.checked);
++  dom.traffic.addEventListener("click", () => {
++    getBrowserWindow()?.SidebarController?.show("viewNullSecTrafficSidebar");
 +  });
-+  dom.aiPageContext.addEventListener("change", () => {
-+    Services.prefs.setBoolPref(PREF.pageContext, dom.aiPageContext.checked);
++  dom.settingsButton.addEventListener("click", () => {
++    dom.settings.hidden = !dom.settings.hidden;
 +  });
 +
-+  dom.chatSend.addEventListener("click", () =>
-+    sendChat(dom.chatInput.value)
-+  );
-+  dom.chatInput.addEventListener("keydown", event => {
-+    if (event.key === "Enter" && !event.shiftKey) {
-+      event.preventDefault();
-+      sendChat(dom.chatInput.value);
++  dom.provider.addEventListener("change", () => {
++    const provider = dom.provider.value;
++    Services.prefs.setStringPref(PREF.provider, provider);
++    applyProviderDefaults(provider);
++    const defaults = PROVIDER_DEFAULTS[provider];
++    if (defaults) {
++      Services.prefs.setStringPref(PREF.baseurl, defaults.baseurl);
++      Services.prefs.setStringPref(PREF.model, defaults.model);
 +    }
-+  });
-+  dom.chatStop.addEventListener("click", () => {
-+    state.abortController?.abort();
-+  });
-+
-+  $("ai-settings-toggle").addEventListener("click", () => {
-+    dom.aiSettings.hidden = !dom.aiSettings.hidden;
-+  });
-+  dom.aiProvider.addEventListener("change", () => {
-+    applyProviderDefaults(dom.aiProvider.value);
-+  });
-+  $("ai-save").addEventListener("click", saveSettingsFromUI);
-+  $("ai-clear-key").addEventListener("click", async () => {
-+    const provider = dom.aiProvider.value;
-+    const removed = await setKey(provider, "");
-+    dom.aiStatus.textContent = removed
-+      ? "API key removed."
-+      : "Could not remove API key.";
 +    loadSettingsIntoUI();
 +  });
 +
-+  dom.trafficFilter.addEventListener("input", () => {
-+    state.trafficFilter = dom.trafficFilter.value;
-+    renderTraffic();
++  dom.autopilot.addEventListener("toggle", () => {
++    Services.prefs.setBoolPref(PREF.autopilot, dom.autopilot.pressed);
 +  });
-+  dom.trafficMethod.addEventListener("change", () => {
-+    state.trafficMethod = dom.trafficMethod.value;
-+    renderTraffic();
-+  });
-+  dom.trafficPause.addEventListener("click", () => {
-+    setTrafficPaused(!state.trafficPaused);
-+  });
-+  $("traffic-clear").addEventListener("click", () => {
-+    state.traffic = [];
-+    state.selectedRequestId = null;
-+    dom.trafficDetail.hidden = true;
-+    renderTraffic();
++  dom.pageContext.addEventListener("toggle", () => {
++    Services.prefs.setBoolPref(PREF.pageContext, dom.pageContext.pressed);
 +  });
 +
-+  dom.notesTarget.addEventListener("change", () => {
-+    state.data.notes[state.selectedTargetId] = dom.notesEditor.value;
-+    state.selectedTargetId = dom.notesTarget.value;
-+    scheduleSave();
-+    loadNotesForTarget();
-+  });
-+  dom.notesEditor.addEventListener("input", scheduleNotesSave);
-+  $("notes-export").addEventListener("click", async () => {
-+    try {
-+      const path = PathUtils.join(DATA_DIR(), "nullsec-export.json");
-+      await IOUtils.makeDirectory(DATA_DIR(), { ignoreExisting: true });
-+      await IOUtils.writeUTF8(
-+        path,
-+        JSON.stringify(state.data, null, 2)
-+      );
-+      setNotesStatus(`Exported to ${path}`);
-+    } catch (error) {
-+      setNotesStatus(`Export failed: ${error.message}`);
++  dom.send.addEventListener("click", () => sendChat(dom.input.value));
++  dom.input.addEventListener("keydown", event => {
++    if (event.key === "Enter" && !event.shiftKey) {
++      event.preventDefault();
++      sendChat(dom.input.value);
 +    }
 +  });
-+
-+  $("target-form").addEventListener("submit", event => {
-+    event.preventDefault();
-+    const name = $("target-name").value.trim();
-+    if (!name) {
-+      return;
-+    }
-+    const scope = $("target-scope").value.trim();
-+    state.data.targets.push({
-+      id: crypto.randomUUID(),
-+      name,
-+      scope,
-+      flags: [],
-+      owned: false,
-+      createdAt: Date.now(),
-+    });
-+    $("target-name").value = "";
-+    $("target-scope").value = "";
-+    scheduleSave();
-+    syncTargetSelects();
-+    renderTargets();
++  dom.stop.addEventListener("click", () => {
++    state.abortController?.abort();
 +  });
-+
-+  $("flag-add").addEventListener("click", () => {
-+    const id = dom.flagTarget.value;
-+    const flag = dom.flagInput.value.trim();
-+    if (!flag) {
-+      return;
-+    }
-+    const target =
-+      id === "global"
-+        ? null
-+        : state.data.targets.find(t => t.id === id);
-+    if (!target) {
-+      dom.flagInput.value = "";
-+      return;
-+    }
-+    target.flags = target.flags || [];
-+    target.flags.push(flag);
-+    target.owned = true;
-+    dom.flagInput.value = "";
-+    scheduleSave();
-+    renderTargets();
++  dom.report.addEventListener("click", generateReport);
++  dom.save.addEventListener("click", saveSettingsFromUI);
++  dom.clearKey.addEventListener("click", async () => {
++    const provider = dom.provider.value;
++    const removed = await setKey(provider, "");
++    loadSettingsIntoUI();
++    dom.status.textContent = removed
++      ? "API key removed."
++      : "Could not remove API key.";
 +  });
 +
 +  const win = getBrowserWindow();
@@ -3148,29 +2026,521 @@ index 00000000..0c39a73a
 +    () => clearInterval(contextTimer),
 +    { once: true }
 +  );
-+  window.addEventListener("unload", stopTraffic, { once: true });
 +}
 +
 +async function init() {
 +  initChrome();
-+  await loadData();
-+  syncTargetSelects();
-+  renderTargets();
-+  loadNotesForTarget();
 +  loadSettingsIntoUI();
 +  updateContext();
-+  startTraffic();
-+  setTrafficPaused(false);
-+  renderTraffic();
-+  refreshKeys()
-+    .then(() => loadSettingsIntoUI())
-+    .catch(error => console.error("NullSec: key refresh failed", error));
++  try {
++    await refreshKeys();
++  } catch (error) {
++    console.error("NullSec: key refresh failed", error);
++  }
++  loadSettingsIntoUI();
 +}
 +
 +init();
-\ No newline at end of file
+diff --git a/browser/components/nullsec/traffic.css b/browser/components/nullsec/traffic.css
+new file mode 100644
+index 00000000..42a00123
+--- /dev/null
++++ b/browser/components/nullsec/traffic.css
+@@ -0,0 +1,150 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++body {
++  height: 100%;
++  margin: 0;
++}
++
++.options-container {
++  align-items: center;
++  display: flex;
++  gap: var(--space-small);
++  width: 100%;
++}
++
++moz-input-search {
++  flex: 1;
++  min-width: 0;
++}
++
++#traffic-list {
++  display: flex;
++  flex-direction: column;
++  gap: 2px;
++}
++
++.traffic-row {
++  align-items: center;
++  background: transparent;
++  border: none;
++  border-radius: var(--border-radius-medium);
++  color: var(--text-color);
++  cursor: default;
++  display: grid;
++  font: inherit;
++  gap: var(--space-small);
++  grid-template-columns: auto minmax(0, 1fr) auto;
++  padding: var(--space-small);
++  text-align: start;
++  width: 100%;
++}
++
++.traffic-row:hover {
++  background-color: var(--button-background-color-ghost-hover);
++}
++
++.traffic-row.is-selected {
++  background-color: var(--button-background-color-ghost-hover);
++}
++
++.traffic-method {
++  color: var(--text-color-deemphasized);
++  font-size: 11px;
++  font-weight: var(--font-weight-semibold);
++  min-width: 3.5em;
++}
++
++.traffic-main {
++  min-width: 0;
++}
++
++.traffic-host {
++  font-weight: var(--font-weight-semibold);
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.traffic-path {
++  color: var(--text-color-deemphasized);
++  font-size: 12px;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.traffic-status {
++  color: var(--text-color-deemphasized);
++  font-size: 12px;
++  font-variant-numeric: tabular-nums;
++}
++
++.traffic-status.is-error {
++  color: var(--text-color);
++  font-weight: var(--font-weight-semibold);
++}
++
++.empty {
++  color: var(--text-color-deemphasized);
++  font-size: 13px;
++  padding: var(--space-large) var(--space-small);
++  text-align: center;
++}
++
++#traffic-detail {
++  margin-block-start: var(--space-small);
++}
++
++#traffic-detail[hidden] {
++  display: none;
++}
++
++.traffic-detail {
++  background-color: var(--background-color-box);
++  border: 1px solid var(--border-color-deemphasized);
++  border-radius: var(--border-radius-medium);
++  padding: var(--space-small);
++}
++
++.traffic-detail h3 {
++  font-size: 13px;
++  margin: 0 0 var(--space-xsmall);
++  overflow-wrap: anywhere;
++}
++
++.traffic-detail .meta {
++  color: var(--text-color-deemphasized);
++  font-size: 12px;
++  margin-block-end: var(--space-small);
++}
++
++.traffic-detail h4 {
++  color: var(--text-color-deemphasized);
++  font-size: 11px;
++  font-weight: var(--font-weight-semibold);
++  margin: var(--space-small) 0 var(--space-xsmall);
++  text-transform: uppercase;
++}
++
++.traffic-detail pre {
++  background-color: var(--background-color-canvas);
++  border: 1px solid var(--border-color-deemphasized);
++  border-radius: var(--border-radius-small);
++  font-family: var(--monospace-font-family, monospace);
++  font-size: 11px;
++  margin: 0;
++  max-height: 220px;
++  overflow: auto;
++  overflow-wrap: anywhere;
++  padding: var(--space-small);
++  white-space: pre-wrap;
++}
++
++.traffic-detail .actions {
++  display: flex;
++  flex-wrap: wrap;
++  gap: var(--space-small);
++  margin-block-start: var(--space-small);
++}
+diff --git a/browser/components/nullsec/traffic.html b/browser/components/nullsec/traffic.html
+new file mode 100644
+index 00000000..256c8e55
+--- /dev/null
++++ b/browser/components/nullsec/traffic.html
+@@ -0,0 +1,72 @@
++<!-- This Source Code Form is subject to the terms of the Mozilla Public
++   - License, v. 2.0. If a copy of the MPL was not distributed with this
++   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
++<!doctype html>
++<html>
++  <head>
++    <meta charset="utf-8" />
++    <meta
++      http-equiv="Content-Security-Policy"
++      content="default-src resource: chrome:; object-src 'none'; img-src data: chrome:;"
++    />
++    <meta name="color-scheme" content="light dark" />
++    <title>Traffic</title>
++    <link rel="localization" href="browser/sidebar.ftl" />
++    <link rel="stylesheet" href="chrome://global/skin/in-content/common.css" />
++    <link
++      rel="stylesheet"
++      href="chrome://browser/content/sidebar/sidebar.css"
++    />
++    <link
++      rel="stylesheet"
++      href="chrome://browser/content/nullsec/traffic.css"
++    />
++    <script src="chrome://browser/content/contentTheme.js"></script>
++    <script
++      type="module"
++      src="chrome://global/content/elements/moz-button.mjs"
++    ></script>
++    <script
++      type="module"
++      src="chrome://global/content/elements/moz-input-search.mjs"
++    ></script>
++    <script
++      type="module"
++      src="chrome://browser/content/sidebar/sidebar-panel-header.mjs"
++    ></script>
++    <script
++      type="module"
++      src="chrome://browser/content/nullsec/traffic.mjs"
++    ></script>
++  </head>
++  <body>
++    <div class="sidebar-panel">
++      <sidebar-panel-header
++        heading="Traffic"
++        view="viewNullSecTrafficSidebar"
++      >
++        <div class="options-container">
++          <moz-input-search
++            id="traffic-filter"
++            placeholder="Filter requests"
++          ></moz-input-search>
++          <moz-button id="traffic-pause" class="menu-button" type="ghost">
++            Pause
++          </moz-button>
++          <moz-button
++            id="traffic-clear"
++            class="menu-button"
++            type="icon ghost"
++            iconsrc="chrome://global/skin/icons/delete.svg"
++            aria-label="Clear traffic"
++            title="Clear traffic"
++          ></moz-button>
++        </div>
++      </sidebar-panel-header>
++      <div class="sidebar-panel-scrollable-content">
++        <div id="traffic-list"></div>
++        <div id="traffic-detail" hidden></div>
++      </div>
++    </div>
++  </body>
++</html>
+diff --git a/browser/components/nullsec/traffic.mjs b/browser/components/nullsec/traffic.mjs
+new file mode 100644
+index 00000000..2105d2f0
+--- /dev/null
++++ b/browser/components/nullsec/traffic.mjs
+@@ -0,0 +1,258 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++const NullSecStore = ChromeUtils.importESModule(
++  "moz-src:///browser/components/nullsec/NullSecStore.sys.mjs"
++);
++
++const state = {
++  filter: "",
++  selectedId: null,
++};
++
++const dom = {};
++
++function $(id) {
++  return document.getElementById(id);
++}
++
++function formatBytes(value) {
++  if (!Number.isFinite(value) || value < 0) {
++    return "";
++  }
++  if (value < 1024) {
++    return `${value} B`;
++  }
++  if (value < 1024 * 1024) {
++    return `${(value / 1024).toFixed(1)} KB`;
++  }
++  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
++}
++
++function splitUrl(url) {
++  try {
++    const parsed = new URL(url);
++    return {
++      host: parsed.host,
++      path: `${parsed.pathname}${parsed.search}`,
++    };
++  } catch {
++    return { host: url, path: "" };
++  }
++}
++
++function copyText(text) {
++  const helper = Cc["@mozilla.org/widget/clipboardhelper;1"].getService(
++    Ci.nsIClipboardHelper
++  );
++  helper.copyString(text);
++}
++
++function curlFor(entry) {
++  const parts = [`curl -i -X ${entry.method} '${entry.url}'`];
++  for (const [name, value] of Object.entries(entry.reqHeaders || {})) {
++    const lower = name.toLowerCase();
++    if (
++      ["host", "content-length", "connection", "accept-encoding"].includes(
++        lower
++      )
++    ) {
++      continue;
++    }
++    parts.push(`  -H '${name}: ${String(value).replaceAll("'", "'\\''")}'`);
++  }
++  return parts.join(" \\\n");
++}
++
++function filteredTraffic() {
++  const filter = state.filter.trim().toLowerCase();
++  return NullSecStore.getTraffic().filter(entry => {
++    if (!filter) {
++      return true;
++    }
++    return `${entry.method} ${entry.url} ${entry.status}`
++      .toLowerCase()
++      .includes(filter);
++  });
++}
++
++function renderDetail(entry) {
++  dom.detail.hidden = false;
++  dom.detail.replaceChildren();
++
++  const card = document.createElement("div");
++  card.className = "traffic-detail";
++
++  const title = document.createElement("h3");
++  title.textContent = `${entry.method} ${entry.url}`;
++  card.appendChild(title);
++
++  const meta = document.createElement("div");
++  meta.className = "meta";
++  const type = entry.type || "unknown";
++  const size = formatBytes(entry.size);
++  meta.textContent = `${entry.status} ${entry.statusText || ""} - ${type}${size ? ` - ${size}` : ""}`;
++  card.appendChild(meta);
++
++  const requestHeading = document.createElement("h4");
++  requestHeading.textContent = "Request headers";
++  const requestHeaders = document.createElement("pre");
++  requestHeaders.textContent =
++    Object.entries(entry.reqHeaders || {})
++      .map(([name, value]) => `${name}: ${value}`)
++      .join("\n") || "(none captured)";
++  card.append(requestHeading, requestHeaders);
++
++  const responseHeading = document.createElement("h4");
++  responseHeading.textContent = "Response headers";
++  const responseHeaders = document.createElement("pre");
++  responseHeaders.textContent =
++    Object.entries(entry.headers || {})
++      .map(([name, value]) => `${name}: ${value}`)
++      .join("\n") || "(none captured)";
++  card.append(responseHeading, responseHeaders);
++
++  const actions = document.createElement("div");
++  actions.className = "actions";
++
++  const copy = document.createElement("moz-button");
++  copy.setAttribute("type", "ghost");
++  copy.textContent = "Copy as cURL";
++  copy.addEventListener("click", () => {
++    copyText(curlFor(entry));
++    copy.textContent = "Copied";
++    setTimeout(() => (copy.textContent = "Copy as cURL"), 1200);
++  });
++
++  const close = document.createElement("moz-button");
++  close.setAttribute("type", "ghost");
++  close.textContent = "Close";
++  close.addEventListener("click", () => {
++    state.selectedId = null;
++    dom.detail.hidden = true;
++    dom.detail.replaceChildren();
++    renderList();
++  });
++
++  actions.append(copy, close);
++  card.appendChild(actions);
++  dom.detail.appendChild(card);
++  dom.detail.scrollIntoView({ block: "nearest" });
++}
++
++function renderList() {
++  const entries = filteredTraffic();
++  dom.list.replaceChildren();
++  if (!entries.length) {
++    const empty = document.createElement("div");
++    empty.className = "empty";
++    empty.textContent = NullSecStore.getTraffic().length
++      ? "No requests match this filter."
++      : "Waiting for HTTP traffic...";
++    dom.list.appendChild(empty);
++    return;
++  }
++  for (const entry of entries.slice(0, 300)) {
++    const { host, path } = splitUrl(entry.url);
++    const row = document.createElement("button");
++    row.type = "button";
++    row.className = "traffic-row";
++    if (entry.id === state.selectedId) {
++      row.classList.add("is-selected");
++    }
++
++    const method = document.createElement("span");
++    method.className = "traffic-method";
++    method.textContent = entry.method;
++
++    const main = document.createElement("span");
++    main.className = "traffic-main";
++    const hostEl = document.createElement("span");
++    hostEl.className = "traffic-host";
++    hostEl.textContent = host;
++    const pathEl = document.createElement("span");
++    pathEl.className = "traffic-path";
++    pathEl.textContent = path || "/";
++    main.append(hostEl, document.createElement("br"), pathEl);
++
++    const status = document.createElement("span");
++    status.className = "traffic-status";
++    if (entry.status >= 400) {
++      status.classList.add("is-error");
++    }
++    status.textContent = entry.status || "";
++
++    row.append(method, main, status);
++    row.addEventListener("click", () => {
++      state.selectedId = entry.id;
++      renderList();
++      renderDetail(entry);
++    });
++    dom.list.appendChild(row);
++  }
++}
++
++let renderQueued = false;
++function scheduleRender() {
++  if (renderQueued) {
++    return;
++  }
++  renderQueued = true;
++  requestAnimationFrame(() => {
++    renderQueued = false;
++    renderList();
++  });
++}
++
++function updatePause() {
++  const paused = NullSecStore.isPaused();
++  dom.pause.textContent = paused ? "Resume" : "Pause";
++  dom.pause.title = paused ? "Resume capture" : "Pause capture";
++}
++
++function init() {
++  dom.filter = $("traffic-filter");
++  dom.pause = $("traffic-pause");
++  dom.clear = $("traffic-clear");
++  dom.list = $("traffic-list");
++  dom.detail = $("traffic-detail");
++
++  dom.filter.addEventListener("input", () => {
++    state.filter = dom.filter.value;
++    scheduleRender();
++  });
++  dom.filter.addEventListener("MozInputSearch:search", event => {
++    state.filter = event.detail?.query || "";
++    scheduleRender();
++  });
++  dom.pause.addEventListener("click", () => {
++    NullSecStore.setPaused(!NullSecStore.isPaused());
++  });
++  dom.clear.addEventListener("click", () => {
++    NullSecStore.clearTraffic();
++    state.selectedId = null;
++    dom.detail.hidden = true;
++    dom.detail.replaceChildren();
++    scheduleRender();
++  });
++
++  const unsubscribe = NullSecStore.subscribe(type => {
++    if (type === "traffic") {
++      scheduleRender();
++    } else if (type === "clear") {
++      state.selectedId = null;
++      dom.detail.hidden = true;
++      dom.detail.replaceChildren();
++      scheduleRender();
++    } else if (type === "paused") {
++      updatePause();
++    }
++  });
++  window.addEventListener("unload", unsubscribe, { once: true });
++
++  updatePause();
++  renderList();
++}
++
++init();
 diff --git a/browser/components/sidebar/SidebarManager.sys.mjs b/browser/components/sidebar/SidebarManager.sys.mjs
-index b1e85f32..79ab7917 100644
+index b1e85f32..90ebf682 100644
 --- a/browser/components/sidebar/SidebarManager.sys.mjs
 +++ b/browser/components/sidebar/SidebarManager.sys.mjs
 @@ -19,7 +19,7 @@ const PINNED_PROMO_PREF = "sidebar.verticalTabs.dragToPinPromo.dismissed";
@@ -3178,23 +2548,35 @@ index b1e85f32..79ab7917 100644
  // will they accumulate any in permanent private browsing. Though, a user may
  // still customize the sidebar to add "history" back. tor-browser#45169.
 -const DEFAULT_LAUNCHER_TOOLS = "bookmarks";
-+const DEFAULT_LAUNCHER_TOOLS = "nullsec,bookmarks";
++const DEFAULT_LAUNCHER_TOOLS = "nullsec,nullsec-traffic,bookmarks";
  const lazy = {};
  ChromeUtils.defineESModuleGetters(lazy, {
    BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.sys.mjs",
+@@ -103,6 +103,10 @@ class SidebarManager extends EventTarget {
+   init() {
+     lazy.CustomizableUI.addListener(this);
+ 
++    ChromeUtils.importESModule(
++      "moz-src:///browser/components/nullsec/NullSecStore.sys.mjs"
++    );
++
+     Services.prefs.addObserver(
+       "sidebar.newTool.migration.",
+       this.updateDefaultTools.bind(this)
 diff --git a/browser/components/sidebar/browser-sidebar.js b/browser/components/sidebar/browser-sidebar.js
-index 20658cda..7db72626 100644
+index 20658cda..64c7cc8d 100644
 --- a/browser/components/sidebar/browser-sidebar.js
 +++ b/browser/components/sidebar/browser-sidebar.js
-@@ -13,6 +13,7 @@ const { DeferredTask } = ChromeUtils.importESModule(
+@@ -13,6 +13,8 @@ const { DeferredTask } = ChromeUtils.importESModule(
  );
  
  const toolsNameMap = {
 +  viewNullSecSidebar: "nullsec",
++  viewNullSecTrafficSidebar: "nullsec-traffic",
    viewGenaiChatSidebar: "aichat",
    viewGenaiPageAssistSidebar: "aipageassist",
    viewTabsSidebar: "syncedtabs",
-@@ -195,6 +196,23 @@ var SidebarController = {
+@@ -195,6 +197,40 @@ var SidebarController = {
        ],
      ]);
  
@@ -3215,17 +2597,37 @@ index 20658cda..7db72626 100644
 +      }
 +    );
 +
++    this.registerPrefSidebar(
++      "browser.nullsec.trafficSidebar.enabled",
++      "viewNullSecTrafficSidebar",
++      {
++        name: "nullsec-traffic",
++        title: "Traffic",
++        elementId: "sidebar-switcher-nullsec-traffic",
++        url: "chrome://browser/content/nullsec/traffic.html",
++        menuId: "menu_nullsecTrafficSidebar",
++        menuL10nId: "menu-view-nullsec-traffic-sidebar",
++        revampL10nId: "sidebar-menu-nullsec-traffic-label",
++        iconUrl: "chrome://global/skin/icons/developer.svg",
++        toolContextMenuId: "nullsec-traffic",
++        hideInAIWindow: false,
++      }
++    );
++
      this.registerPrefSidebar(
        "browser.ml.chat.enabled",
        "viewGenaiChatSidebar",
 diff --git a/browser/locales/en-US/browser/sidebar.ftl b/browser/locales/en-US/browser/sidebar.ftl
-index aced1cce..b608b76e 100644
+index aced1cce..43253b2a 100644
 --- a/browser/locales/en-US/browser/sidebar.ftl
 +++ b/browser/locales/en-US/browser/sidebar.ftl
-@@ -288,3 +288,6 @@ sidebar-widget-hide-sidebar2 =
+@@ -288,3 +288,9 @@ sidebar-widget-hide-sidebar2 =
  # users who do not have any pinned tabs. Indicates that they can drop tabs in
  # this area to pin them.
  sidebar-pins-promo-text = Drag important tabs here to keep them within reach
 +
 +menu-view-nullsec-sidebar = NullSec
 +sidebar-menu-nullsec-label = NullSec
++
++menu-view-nullsec-traffic-sidebar = Traffic
++sidebar-menu-nullsec-traffic-label = Traffic
