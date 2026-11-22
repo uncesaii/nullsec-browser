@@ -180,19 +180,20 @@ index 2b957018..dd2dee24 100644
      "PageInfoPreviewChild.sys.mjs",
      "PageStyleChild.sys.mjs",
 diff --git a/browser/app/profile/000-mullvad-browser.js b/browser/app/profile/000-mullvad-browser.js
-index 3636c5d0..cd9e9558 100644
+index 3636c5d0..15c62e96 100644
 --- a/browser/app/profile/000-mullvad-browser.js
 +++ b/browser/app/profile/000-mullvad-browser.js
-@@ -56,3 +56,16 @@ pref("browser.selectiveSavingMode.enabled", false);
+@@ -56,3 +56,17 @@ pref("browser.selectiveSavingMode.enabled", false);
  #else
  pref("browser.selectiveSavingMode.enabled", true);
  #endif
 +
 +// NullSec native sidebar and AI defaults.
 +pref("sidebar.revamp", true);
-+pref("sidebar.main.tools", "nullsec,nullsec-traffic,bookmarks");
++pref("sidebar.main.tools", "nullsec,nullsec-traffic,nullsec-reports,bookmarks");
 +pref("browser.nullsec.sidebar.enabled", true);
 +pref("browser.nullsec.trafficSidebar.enabled", true);
++pref("browser.nullsec.reportsSidebar.enabled", true);
 +pref("browser.nullsec.ai.provider", "openai");
 +pref("browser.nullsec.ai.baseurl", "https://api.openai.com/v1");
 +pref("browser.nullsec.ai.model", "gpt-4o-mini");
@@ -235,10 +236,10 @@ index 7c5e6323..14c7662c 100644
      "pagedata",
 diff --git a/browser/components/nullsec/NullSecStore.sys.mjs b/browser/components/nullsec/NullSecStore.sys.mjs
 new file mode 100644
-index 00000000..5b51a371
+index 00000000..f7370d24
 --- /dev/null
 +++ b/browser/components/nullsec/NullSecStore.sys.mjs
-@@ -0,0 +1,142 @@
+@@ -0,0 +1,173 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -255,6 +256,7 @@ index 00000000..5b51a371
 +
 +let traffic = [];
 +let flags = [];
++let reports = [];
 +let trafficSeq = 0;
 +let paused = false;
 +let observer = null;
@@ -381,12 +383,42 @@ index 00000000..5b51a371
 +  paused = !!value;
 +  emit("paused", paused);
 +}
++
++export function getReports() {
++  return reports;
++}
++
++export function setReport(report) {
++  if (!report || !report.id) {
++    return;
++  }
++  const index = reports.findIndex(entry => entry.id === report.id);
++  if (index >= 0) {
++    reports[index] = report;
++  } else {
++    reports.unshift(report);
++    if (reports.length > 50) {
++      reports.length = 50;
++    }
++  }
++  emit("reports", report);
++}
++
++export function removeReport(id) {
++  reports = reports.filter(entry => entry.id !== id);
++  emit("reports", null);
++}
++
++export function clearReports() {
++  reports = [];
++  emit("reports", null);
++}
 diff --git a/browser/components/nullsec/jar.mn b/browser/components/nullsec/jar.mn
 new file mode 100644
-index 00000000..fafcebc1
+index 00000000..58f9a772
 --- /dev/null
 +++ b/browser/components/nullsec/jar.mn
-@@ -0,0 +1,12 @@
+@@ -0,0 +1,15 @@
 +# This Source Code Form is subject to the terms of the Mozilla Public
 +# License, v. 2.0. If a copy of the MPL was not distributed with this
 +# file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -398,6 +430,9 @@ index 00000000..fafcebc1
 +    content/browser/nullsec/traffic.html
 +    content/browser/nullsec/traffic.mjs
 +    content/browser/nullsec/traffic.css
++    content/browser/nullsec/reports.html
++    content/browser/nullsec/reports.mjs
++    content/browser/nullsec/reports.css
 +    content/browser/nullsec/nullsec.svg
 diff --git a/browser/components/nullsec/moz.build b/browser/components/nullsec/moz.build
 new file mode 100644
@@ -426,6 +461,527 @@ index 00000000..f5f73c19
 +  <path d="M5.4 7.8 7.1 9.5l3.5-3.6 1 1-4.5 4.6-2.7-2.7 1-1Z"/>
 +</svg>
 \ No newline at end of file
+diff --git a/browser/components/nullsec/reports.css b/browser/components/nullsec/reports.css
+new file mode 100644
+index 00000000..12cacf17
+--- /dev/null
++++ b/browser/components/nullsec/reports.css
+@@ -0,0 +1,163 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++body {
++  height: 100%;
++  margin: 0;
++}
++
++.options-container {
++  align-items: center;
++  display: flex;
++  gap: var(--space-small);
++  width: 100%;
++}
++
++.report-select {
++  -moz-context-properties: fill;
++  appearance: none;
++  background-color: transparent;
++  background-image: url("chrome://global/skin/icons/arrow-down.svg");
++  background-position: right 4px center;
++  background-repeat: no-repeat;
++  background-size: 12px;
++  border: none;
++  border-radius: 999px;
++  color: var(--text-color);
++  cursor: pointer;
++  fill: currentColor;
++  flex: 1;
++  font-size: 13px;
++  height: 28px;
++  min-width: 0;
++  overflow: hidden;
++  padding: 0 22px 0 10px;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.report-select:hover {
++  background-color: var(--button-background-color-ghost-hover);
++}
++
++.empty {
++  color: var(--text-color-deemphasized);
++  font-size: 13px;
++  padding: var(--space-large) var(--space-small);
++  text-align: center;
++}
++
++.report-body {
++  color: var(--text-color);
++  font-size: 13px;
++  line-height: 1.6;
++  overflow-wrap: anywhere;
++}
++
++.report-body > :first-child {
++  margin-block-start: 0;
++}
++
++.report-body h1 {
++  font-size: 18px;
++  margin-block: 0 var(--space-small);
++}
++
++.report-body h2 {
++  border-block-end: 1px solid var(--border-color-deemphasized);
++  font-size: 15px;
++  margin-block: var(--space-large) var(--space-small);
++  padding-block-end: var(--space-xsmall);
++}
++
++.report-body h3 {
++  font-size: 14px;
++  margin-block: var(--space-medium) var(--space-xsmall);
++}
++
++.report-body h4,
++.report-body h5,
++.report-body h6 {
++  font-size: 13px;
++  margin-block: var(--space-small) var(--space-xsmall);
++}
++
++.report-body p,
++.report-body ul,
++.report-body ol,
++.report-body pre,
++.report-body table {
++  margin-block: 0 var(--space-small);
++}
++
++.report-body ul,
++.report-body ol {
++  padding-inline-start: var(--space-large);
++}
++
++.report-body a {
++  color: var(--link-color);
++}
++
++.report-body code {
++  background-color: var(--background-color-canvas);
++  border: 1px solid var(--border-color-deemphasized);
++  border-radius: var(--border-radius-small);
++  font-family: var(--monospace-font-family, monospace);
++  font-size: 0.92em;
++  padding: 0 3px;
++}
++
++.report-body pre {
++  background-color: var(--background-color-canvas);
++  border: 1px solid var(--border-color-deemphasized);
++  border-radius: var(--border-radius-small);
++  max-width: 100%;
++  overflow: auto;
++  padding: var(--space-small);
++}
++
++.report-body pre code {
++  background: none;
++  border: none;
++  padding: 0;
++}
++
++.report-body table {
++  border-collapse: collapse;
++  display: block;
++  font-size: 12px;
++  max-width: 100%;
++  overflow-x: auto;
++}
++
++.report-body th,
++.report-body td {
++  border: 1px solid var(--border-color-deemphasized);
++  padding: 4px 6px;
++  text-align: start;
++  vertical-align: top;
++}
++
++.report-body th {
++  background-color: var(--background-color-canvas);
++  font-weight: var(--font-weight-semibold);
++}
++
++.report-body hr {
++  border: none;
++  border-top: 1px solid var(--border-color-deemphasized);
++  margin-block: var(--space-medium);
++}
++
++.report-footer {
++  border-block-start: 1px solid var(--border-color);
++  display: flex;
++  gap: var(--space-small);
++  padding-block-start: var(--space-small);
++}
++
++.report-footer[hidden] {
++  display: none;
++}
+diff --git a/browser/components/nullsec/reports.html b/browser/components/nullsec/reports.html
+new file mode 100644
+index 00000000..a95413e7
+--- /dev/null
++++ b/browser/components/nullsec/reports.html
+@@ -0,0 +1,66 @@
++<!-- This Source Code Form is subject to the terms of the Mozilla Public
++   - License, v. 2.0. If a copy of the MPL was not distributed with this
++   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
++<!doctype html>
++<html>
++  <head>
++    <meta charset="utf-8" />
++    <meta
++      http-equiv="Content-Security-Policy"
++      content="default-src resource: chrome:; object-src 'none'; img-src data: chrome:;"
++    />
++    <meta name="color-scheme" content="light dark" />
++    <title>Reports</title>
++    <link rel="localization" href="browser/sidebar.ftl" />
++    <link rel="stylesheet" href="chrome://global/skin/in-content/common.css" />
++    <link
++      rel="stylesheet"
++      href="chrome://browser/content/sidebar/sidebar.css"
++    />
++    <link
++      rel="stylesheet"
++      href="chrome://browser/content/nullsec/reports.css"
++    />
++    <script src="chrome://browser/content/contentTheme.js"></script>
++    <script
++      type="module"
++      src="chrome://global/content/elements/moz-button.mjs"
++    ></script>
++    <script
++      type="module"
++      src="chrome://browser/content/sidebar/sidebar-panel-header.mjs"
++    ></script>
++    <script
++      type="module"
++      src="chrome://browser/content/nullsec/reports.mjs"
++    ></script>
++  </head>
++  <body>
++    <div class="sidebar-panel">
++      <sidebar-panel-header heading="Reports" view="viewNullSecReportsSidebar">
++        <div class="options-container">
++          <select id="report-select" class="report-select"></select>
++          <moz-button
++            id="report-clear"
++            class="menu-button"
++            type="icon ghost"
++            iconsrc="chrome://global/skin/icons/delete.svg"
++            aria-label="Clear reports"
++            title="Clear reports"
++          ></moz-button>
++        </div>
++      </sidebar-panel-header>
++      <div class="sidebar-panel-scrollable-content">
++        <div id="report-empty" class="empty">
++          No reports yet. A professional report is generated automatically when
++          a flag is captured, or when you ask the AI for one.
++        </div>
++        <div id="report-body" class="report-body" hidden></div>
++      </div>
++      <div id="report-actions" class="report-footer" hidden>
++        <moz-button id="report-copy" type="ghost">Copy</moz-button>
++        <moz-button id="report-save" type="ghost">Save .md</moz-button>
++      </div>
++    </div>
++  </body>
++</html>
+diff --git a/browser/components/nullsec/reports.mjs b/browser/components/nullsec/reports.mjs
+new file mode 100644
+index 00000000..c9cd4b19
+--- /dev/null
++++ b/browser/components/nullsec/reports.mjs
+@@ -0,0 +1,274 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++const NullSecStore = ChromeUtils.importESModule(
++  "moz-src:///browser/components/nullsec/NullSecStore.sys.mjs"
++);
++
++const state = {
++  selectedId: null,
++};
++
++const dom = {};
++
++function $(id) {
++  return document.getElementById(id);
++}
++
++function escapeHtml(text) {
++  return String(text)
++    .replaceAll("&", "&amp;")
++    .replaceAll("<", "&lt;")
++    .replaceAll(">", "&gt;")
++    .replaceAll('"', "&quot;");
++}
++
++function renderInline(text) {
++  let chunk = String(text);
++  chunk = chunk.replace(/`([^`]+)`/g, "<code>$1</code>");
++  chunk = chunk.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
++  chunk = chunk.replace(
++    /(^|[\s(])_([^_\n]+)_(?=[\s).,!?:;]|$)/g,
++    "$1<em>$2</em>"
++  );
++  chunk = chunk.replace(
++    /(https?:\/\/[^\s<]+)/g,
++    '<a href="$1" target="_blank" rel="noreferrer">$1</a>'
++  );
++  return chunk;
++}
++
++function splitTableRow(line) {
++  let row = line.trim();
++  if (row.startsWith("|")) {
++    row = row.slice(1);
++  }
++  if (row.endsWith("|")) {
++    row = row.slice(0, -1);
++  }
++  return row.split("|").map(cell => cell.trim());
++}
++
++function renderBlocks(text) {
++  const lines = text.split(/\r?\n/);
++  const html = [];
++  let paragraph = [];
++  let list = null;
++  const flushParagraph = () => {
++    if (paragraph.length) {
++      html.push(`<p>${paragraph.join("<br>")}</p>`);
++      paragraph = [];
++    }
++  };
++  const flushList = () => {
++    if (list) {
++      html.push(
++        `<${list.type}>${list.items
++          .map(item => `<li>${item}</li>`)
++          .join("")}</${list.type}>`
++      );
++      list = null;
++    }
++  };
++  for (let index = 0; index < lines.length; index++) {
++    const trimmed = lines[index].trim();
++    if (!trimmed) {
++      flushParagraph();
++      flushList();
++      continue;
++    }
++    const heading = trimmed.match(/^(#{1,6})\s+(.*)$/);
++    if (heading) {
++      flushParagraph();
++      flushList();
++      const level = heading[1].length;
++      html.push(`<h${level}>${renderInline(heading[2])}</h${level}>`);
++      continue;
++    }
++    if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
++      flushParagraph();
++      flushList();
++      html.push("<hr>");
++      continue;
++    }
++    if (
++      trimmed.includes("|") &&
++      lines[index + 1] &&
++      /^\s*\|?\s*:?-{2,}/.test(lines[index + 1])
++    ) {
++      flushParagraph();
++      flushList();
++      const header = splitTableRow(trimmed);
++      const rows = [];
++      index += 2;
++      while (index < lines.length && lines[index].trim().includes("|")) {
++        rows.push(splitTableRow(lines[index]));
++        index++;
++      }
++      index--;
++      html.push(
++        `<table><thead><tr>${header
++          .map(cell => `<th>${renderInline(cell)}</th>`)
++          .join("")}</tr></thead><tbody>${rows
++          .map(
++            row =>
++              `<tr>${row
++                .map(cell => `<td>${renderInline(cell)}</td>`)
++                .join("")}</tr>`
++          )
++          .join("")}</tbody></table>`
++      );
++      continue;
++    }
++    const bullet = trimmed.match(/^[-*]\s+(.*)$/);
++    if (bullet) {
++      flushParagraph();
++      if (!list || list.type !== "ul") {
++        flushList();
++        list = { type: "ul", items: [] };
++      }
++      list.items.push(renderInline(bullet[1]));
++      continue;
++    }
++    const numbered = trimmed.match(/^\d+[.)]\s+(.*)$/);
++    if (numbered) {
++      flushParagraph();
++      if (!list || list.type !== "ol") {
++        flushList();
++        list = { type: "ol", items: [] };
++      }
++      list.items.push(renderInline(numbered[1]));
++      continue;
++    }
++    flushList();
++    paragraph.push(renderInline(trimmed));
++  }
++  flushParagraph();
++  flushList();
++  return html.join("");
++}
++
++function renderMarkdown(text) {
++  const parts = String(text).split(/```/);
++  let html = "";
++  parts.forEach((part, index) => {
++    if (index % 2 === 1) {
++      const trimmed = part.replace(/^\w*\n/, "");
++      html += `<pre><code>${escapeHtml(trimmed)}</code></pre>`;
++      return;
++    }
++    html += renderBlocks(escapeHtml(part));
++  });
++  return html;
++}
++
++function copyText(text) {
++  const helper = Cc["@mozilla.org/widget/clipboardhelper;1"].getService(
++    Ci.nsIClipboardHelper
++  );
++  helper.copyString(text);
++}
++
++function currentReport() {
++  const reports = NullSecStore.getReports();
++  if (!reports.length) {
++    return null;
++  }
++  return reports.find(report => report.id === state.selectedId) || reports[0];
++}
++
++function renderSelect(reports) {
++  dom.select.replaceChildren();
++  if (!reports.length) {
++    return;
++  }
++  for (const report of reports) {
++    const option = document.createElement("option");
++    option.value = report.id;
++    option.textContent = report.title || report.id;
++    dom.select.appendChild(option);
++  }
++  const selected = currentReport();
++  if (selected) {
++    dom.select.value = selected.id;
++  }
++}
++
++function render() {
++  const reports = NullSecStore.getReports();
++  const report = currentReport();
++  renderSelect(reports);
++  if (!report) {
++    dom.empty.hidden = false;
++    dom.body.hidden = true;
++    dom.actions.hidden = true;
++    return;
++  }
++  state.selectedId = report.id;
++  dom.empty.hidden = true;
++  dom.body.hidden = false;
++  dom.actions.hidden = false;
++  dom.body.innerHTML = renderMarkdown(report.markdown);
++}
++
++function init() {
++  dom.select = $("report-select");
++  dom.empty = $("report-empty");
++  dom.body = $("report-body");
++  dom.actions = $("report-actions");
++  dom.copy = $("report-copy");
++  dom.save = $("report-save");
++  dom.clear = $("report-clear");
++
++  dom.select.addEventListener("change", () => {
++    state.selectedId = dom.select.value;
++    render();
++  });
++  dom.copy.addEventListener("click", () => {
++    const report = currentReport();
++    if (!report) {
++      return;
++    }
++    copyText(report.markdown);
++    dom.copy.textContent = "Copied";
++    setTimeout(() => (dom.copy.textContent = "Copy"), 1200);
++  });
++  dom.save.addEventListener("click", async () => {
++    const report = currentReport();
++    if (!report) {
++      return;
++    }
++    try {
++      const dir = PathUtils.join(PathUtils.profileDir, "nullsec");
++      await IOUtils.makeDirectory(dir, { ignoreExisting: true });
++      const path = PathUtils.join(
++        dir,
++        report.id === "current" ? "nullsec-report.md" : `${report.id}.md`
++      );
++      await IOUtils.writeUTF8(path, report.markdown);
++      dom.save.textContent = "Saved";
++      dom.save.title = path;
++      setTimeout(() => (dom.save.textContent = "Save .md"), 1500);
++    } catch (error) {
++      dom.save.textContent = "Failed";
++      dom.save.title = error.message;
++    }
++  });
++  dom.clear.addEventListener("click", () => {
++    NullSecStore.clearReports();
++    state.selectedId = null;
++    render();
++  });
++
++  const unsubscribe = NullSecStore.subscribe(type => {
++    if (type === "reports") {
++      render();
++    }
++  });
++  window.addEventListener("unload", unsubscribe, { once: true });
++
++  render();
++}
++
++init();
 diff --git a/browser/components/nullsec/sidebar.css b/browser/components/nullsec/sidebar.css
 new file mode 100644
 index 00000000..0f040650
@@ -1392,10 +1948,10 @@ index 00000000..f7586c63
 +</html>
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..0e24e9dd
+index 00000000..653da001
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
-@@ -0,0 +1,1784 @@
+@@ -0,0 +1,1844 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -1422,9 +1978,12 @@ index 00000000..0e24e9dd
 +
 +const AGENT_PROTOCOL = [
 +  "You are driving a live browser. You act by replying with a single JSON object and nothing else.",
-+  'To act, reply: {"thought":"short reason","action":{"type":"click|type|scroll|navigate|back|forward|read|flag","selector":"<css selector from the provided controls>","text":"value","submit":true,"url":"https://...","y":600,"value":"FLAG{...}","note":"where it was found"}}',
++  "Reply with ONLY the raw JSON object. Do not add prose, explanations, markdown, or code fences around it.",
++  'To act, reply: {"thought":"short reason","action":{"type":"click|type|scroll|navigate|back|forward|read|flag|report","selector":"<css selector from the provided controls>","text":"value","submit":true,"url":"https://...","y":600,"value":"FLAG{...}","note":"where it was found"}}',
 +  'To record a flag, reply: {"thought":"short reason","action":{"type":"flag","value":"FLAG{...}","note":"where it was found"}}',
++  'To generate the engagement report, reply: {"thought":"short reason","action":{"type":"report"}}',
 +  'When you are done, reply: {"thought":"short reason","answer":"final markdown answer"}',
++  "Never put the JSON object or your raw thoughts inside the final answer. The final answer must be clean markdown written for the user.",
 +  "Only use selectors listed in INTERACTIVE ELEMENTS. Prefer clicking links and submitting forms over guessing URLs.",
 +  "After each action you will receive the resulting page text and controls. Keep going until the objective is met or you are blocked.",
 +  "When you discover a flag, record it with the flag action immediately.",
@@ -2277,6 +2836,23 @@ index 00000000..0e24e9dd
 +  if (!trimmed || state.streaming) {
 +    return;
 +  }
++  if (wantsReport(trimmed)) {
++    addUserMessage(trimmed);
++    dom.input.value = "";
++    autoGrowInput();
++    const view = createAssistantView();
++    setAssistantStatus(view, null);
++    view.status.hidden = true;
++    view.body.innerHTML = renderMarkdown(
++      "The engagement report has been generated and opened in the **Reports** panel."
++    );
++    attachAssistantActions(view, {
++      text: "Report generated.",
++      allowRegenerate: false,
++    });
++    generateReport({ open: true });
++    return;
++  }
 +  if (getBoolPref(PREF.autopilot, false)) {
 +    return runAgent(trimmed);
 +  }
@@ -2448,6 +3024,9 @@ index 00000000..0e24e9dd
 +        ? { ok: true, flag: value }
 +        : { ok: true, duplicate: true, flag: value };
 +    }
++    case "report":
++      generateReport({ open: true });
++      return { ok: true, report: true };
 +    case "click":
 +    case "type":
 +    case "scroll": {
@@ -2515,9 +3094,34 @@ index 00000000..0e24e9dd
 +      return "Reading the page";
 +    case "flag":
 +      return `Recording flag ${action.value}`;
++    case "report":
++      return "Generating the engagement report";
 +    default:
 +      return `Action: ${action.type}`;
 +  }
++}
++
++function cleanAssistantText(text) {
++  let out = String(text || "");
++  out = out.replace(/```(?:json)?\s*[\s\S]*?```/gi, "");
++  out = out.replace(/\{\s*"(?:thought|action|answer)"[\s\S]*?\}\s*$/g, "");
++  out = out
++    .split(/\r?\n/)
++    .filter(line => {
++      const trimmed = line.trim();
++      if (!trimmed.startsWith("{")) {
++        return true;
++      }
++      try {
++        const parsed = JSON.parse(trimmed);
++        if (parsed && (parsed.action || parsed.thought)) {
++          return false;
++        }
++      } catch {}
++      return true;
++    })
++    .join("\n");
++  return out.replace(/\n{3,}/g, "\n\n").trim();
 +}
 +
 +function captureFlags(text, url = "") {
@@ -2640,6 +3244,7 @@ index 00000000..0e24e9dd
 +        ? "Done."
 +        : "_Stopped after reaching the step limit._";
 +    }
++    assistant.content = cleanAssistantText(assistant.content) || "Task complete.";
 +    captureFlags(assistant.content, getActiveTabInfo().url);
 +    view.body.innerHTML = renderMarkdown(assistant.content);
 +    view.timing = formatTiming(performance.now() - started);
@@ -2668,6 +3273,7 @@ index 00000000..0e24e9dd
 +    setStreaming(false);
 +    state.abortController = null;
 +    state.session.lastAnswer = assistant.content;
++    scheduleReport();
 +    scrollChat();
 +  }
 +}
@@ -2947,39 +3553,43 @@ index 00000000..0e24e9dd
 +  return lines.join("\n");
 +}
 +
-+function generateReport() {
++function buildCurrentReport() {
++  const flags = NullSecStore.getFlags();
++  const traffic = NullSecStore.getTraffic();
++  const tab = getActiveTabInfo();
++  return {
++    id: "current",
++    title: tab.title || tab.url || "NullSec engagement",
++    target: tab.url || "",
++    objective: state.session.objectives[0] || "",
++    createdAt: Date.now(),
++    flags: flags.length,
++    requests: traffic.length,
++    markdown: buildReportMarkdown(),
++  };
++}
++
++let reportTimer = null;
++function scheduleReport() {
++  clearTimeout(reportTimer);
++  reportTimer = setTimeout(() => {
++    NullSecStore.setReport(buildCurrentReport());
++  }, 800);
++}
++
++function generateReport({ open = true } = {}) {
 +  showSettings(false);
-+  const markdown = buildReportMarkdown();
-+  const wrapper = document.createElement("div");
-+  wrapper.className = "message assistant";
-+  const actions = document.createElement("div");
-+  actions.className = "report-actions";
-+  const copy = actionButton("Copy", () => {
-+    copyText(markdown);
-+    copy.textContent = "Copied";
-+    setTimeout(() => (copy.textContent = "Copy"), 1500);
-+  });
-+  const save = actionButton("Save .md", async () => {
-+    try {
-+      const path = PathUtils.join(REPORT_DIR(), "nullsec-report.md");
-+      await IOUtils.makeDirectory(REPORT_DIR(), { ignoreExisting: true });
-+      await IOUtils.writeUTF8(path, markdown);
-+      save.textContent = "Saved";
-+      save.title = path;
-+      setTimeout(() => (save.textContent = "Save .md"), 1500);
-+    } catch (error) {
-+      save.textContent = "Failed";
-+      save.title = error.message;
-+    }
-+  });
-+  actions.append(copy, save);
-+  const report = document.createElement("div");
-+  report.className = "assistant-body";
-+  report.innerHTML = renderMarkdown(markdown);
-+  wrapper.append(actions, report);
-+  dom.empty.hidden = true;
-+  dom.messages.appendChild(wrapper);
-+  scrollChat();
++  clearTimeout(reportTimer);
++  NullSecStore.setReport(buildCurrentReport());
++  if (open) {
++    getBrowserWindow()?.SidebarController?.show("viewNullSecReportsSidebar");
++  }
++}
++
++function wantsReport(text) {
++  return /\b(report|write[\s-]?up|engagement summary|summari[sz]e (?:the )?findings)\b/i.test(
++    text
++  );
 +}
 +
 +function applyProviderDefaults(provider) {
@@ -3126,7 +3736,7 @@ index 00000000..0e24e9dd
 +  dom.stop.addEventListener("click", () => {
 +    state.abortController?.abort();
 +  });
-+  dom.report.addEventListener("click", generateReport);
++  dom.report.addEventListener("click", () => generateReport());
 +  dom.save.addEventListener("click", saveSettingsFromUI);
 +  dom.clearKey.addEventListener("click", async () => {
 +    const provider = dom.provider.value;
@@ -3171,6 +3781,12 @@ index 00000000..0e24e9dd
 +  initChrome();
 +  loadSettingsIntoUI();
 +  updateContext();
++  const unsubscribeReports = NullSecStore.subscribe(type => {
++    if (type === "flags") {
++      scheduleReport();
++    }
++  });
++  window.addEventListener("unload", unsubscribeReports, { once: true });
 +  try {
 +    await refreshKeys();
 +  } catch (error) {
@@ -3679,7 +4295,7 @@ index 00000000..becab2a3
 +
 +init();
 diff --git a/browser/components/sidebar/SidebarManager.sys.mjs b/browser/components/sidebar/SidebarManager.sys.mjs
-index b1e85f32..90ebf682 100644
+index b1e85f32..5db8c013 100644
 --- a/browser/components/sidebar/SidebarManager.sys.mjs
 +++ b/browser/components/sidebar/SidebarManager.sys.mjs
 @@ -19,7 +19,7 @@ const PINNED_PROMO_PREF = "sidebar.verticalTabs.dragToPinPromo.dismissed";
@@ -3687,7 +4303,7 @@ index b1e85f32..90ebf682 100644
  // will they accumulate any in permanent private browsing. Though, a user may
  // still customize the sidebar to add "history" back. tor-browser#45169.
 -const DEFAULT_LAUNCHER_TOOLS = "bookmarks";
-+const DEFAULT_LAUNCHER_TOOLS = "nullsec,nullsec-traffic,bookmarks";
++const DEFAULT_LAUNCHER_TOOLS = "nullsec,nullsec-traffic,nullsec-reports,bookmarks";
  const lazy = {};
  ChromeUtils.defineESModuleGetters(lazy, {
    BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.sys.mjs",
@@ -3703,19 +4319,20 @@ index b1e85f32..90ebf682 100644
        "sidebar.newTool.migration.",
        this.updateDefaultTools.bind(this)
 diff --git a/browser/components/sidebar/browser-sidebar.js b/browser/components/sidebar/browser-sidebar.js
-index 20658cda..64c7cc8d 100644
+index 20658cda..e30f5d1d 100644
 --- a/browser/components/sidebar/browser-sidebar.js
 +++ b/browser/components/sidebar/browser-sidebar.js
-@@ -13,6 +13,8 @@ const { DeferredTask } = ChromeUtils.importESModule(
+@@ -13,6 +13,9 @@ const { DeferredTask } = ChromeUtils.importESModule(
  );
  
  const toolsNameMap = {
 +  viewNullSecSidebar: "nullsec",
 +  viewNullSecTrafficSidebar: "nullsec-traffic",
++  viewNullSecReportsSidebar: "nullsec-reports",
    viewGenaiChatSidebar: "aichat",
    viewGenaiPageAssistSidebar: "aipageassist",
    viewTabsSidebar: "syncedtabs",
-@@ -195,6 +197,40 @@ var SidebarController = {
+@@ -195,6 +198,57 @@ var SidebarController = {
        ],
      ]);
  
@@ -3753,14 +4370,31 @@ index 20658cda..64c7cc8d 100644
 +      }
 +    );
 +
++    this.registerPrefSidebar(
++      "browser.nullsec.reportsSidebar.enabled",
++      "viewNullSecReportsSidebar",
++      {
++        name: "nullsec-reports",
++        title: "Reports",
++        elementId: "sidebar-switcher-nullsec-reports",
++        url: "chrome://browser/content/nullsec/reports.html",
++        menuId: "menu_nullsecReportsSidebar",
++        menuL10nId: "menu-view-nullsec-reports-sidebar",
++        revampL10nId: "sidebar-menu-nullsec-reports-label",
++        iconUrl: "chrome://global/skin/icons/edit.svg",
++        toolContextMenuId: "nullsec-reports",
++        hideInAIWindow: false,
++      }
++    );
++
      this.registerPrefSidebar(
        "browser.ml.chat.enabled",
        "viewGenaiChatSidebar",
 diff --git a/browser/locales/en-US/browser/sidebar.ftl b/browser/locales/en-US/browser/sidebar.ftl
-index aced1cce..43253b2a 100644
+index aced1cce..71b2debf 100644
 --- a/browser/locales/en-US/browser/sidebar.ftl
 +++ b/browser/locales/en-US/browser/sidebar.ftl
-@@ -288,3 +288,9 @@ sidebar-widget-hide-sidebar2 =
+@@ -288,3 +288,12 @@ sidebar-widget-hide-sidebar2 =
  # users who do not have any pinned tabs. Indicates that they can drop tabs in
  # this area to pin them.
  sidebar-pins-promo-text = Drag important tabs here to keep them within reach
@@ -3770,3 +4404,6 @@ index aced1cce..43253b2a 100644
 +
 +menu-view-nullsec-traffic-sidebar = Traffic
 +sidebar-menu-nullsec-traffic-label = Traffic
++
++menu-view-nullsec-reports-sidebar = Reports
++sidebar-menu-nullsec-reports-label = Reports
