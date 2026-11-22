@@ -1198,10 +1198,10 @@ index 00000000..c9cd4b19
 +init();
 diff --git a/browser/components/nullsec/sidebar.css b/browser/components/nullsec/sidebar.css
 new file mode 100644
-index 00000000..0f040650
+index 00000000..03fe26b8
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.css
-@@ -0,0 +1,701 @@
+@@ -0,0 +1,838 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -1575,6 +1575,143 @@ index 00000000..0f040650
 +  color: var(--text-color-deemphasized);
 +  font-size: 11px;
 +  margin-block-start: 2px;
++}
++
++.reasoning-label {
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.walkthrough {
++  gap: 2px;
++}
++
++.walk-step {
++  border-inline-start: 2px solid var(--border-color-deemphasized);
++  margin-inline-start: 6px;
++  padding-inline-start: 8px;
++}
++
++.walk-step[data-state="running"] {
++  border-inline-start-color: var(--button-background-color-primary, AccentColor);
++}
++
++.walk-head {
++  align-items: center;
++  cursor: pointer;
++  display: flex;
++  font-size: 12px;
++  gap: 6px;
++  list-style: none;
++  padding: 3px 2px;
++}
++
++.walk-head::-webkit-details-marker {
++  display: none;
++}
++
++.walk-step .chevron {
++  flex: 0 0 auto;
++  margin-inline-start: auto;
++  opacity: 0.7;
++  transform: rotate(-90deg);
++  transition: transform 0.15s ease;
++}
++
++.walk-step[open] .chevron {
++  transform: rotate(0deg);
++}
++
++.walk-num {
++  align-items: center;
++  background-color: var(--background-color-canvas);
++  border: 1px solid var(--border-color-deemphasized);
++  border-radius: 50%;
++  color: var(--text-color-deemphasized);
++  display: inline-flex;
++  flex: 0 0 auto;
++  font-size: 10px;
++  height: 16px;
++  justify-content: center;
++  width: 16px;
++}
++
++.walk-icon {
++  display: inline-flex;
++  flex: 0 0 auto;
++}
++
++.walk-icon .icon {
++  height: 12px;
++  width: 12px;
++}
++
++.walk-title {
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.walk-detail {
++  display: flex;
++  flex-direction: column;
++  gap: 6px;
++  padding-block: 2px 6px;
++  padding-inline-start: 22px;
++}
++
++.walk-thought {
++  color: var(--text-color-deemphasized);
++  font-size: 11px;
++  font-style: italic;
++}
++
++.walk-section {
++  display: flex;
++  flex-direction: column;
++  gap: 3px;
++}
++
++.walk-section-title {
++  color: var(--text-color-deemphasized);
++  font-size: 10px;
++  font-weight: var(--font-weight-semibold);
++  letter-spacing: 0.04em;
++  text-transform: uppercase;
++}
++
++.walk-pre {
++  background-color: var(--background-color-canvas);
++  border: 1px solid var(--border-color-deemphasized);
++  border-radius: var(--border-radius-small);
++  font-family: var(--monospace-font-family, monospace);
++  font-size: 11px;
++  margin: 0;
++  max-height: 180px;
++  overflow: auto;
++  overflow-wrap: anywhere;
++  padding: 6px 8px;
++  white-space: pre-wrap;
++}
++
++.walk-table {
++  border-collapse: collapse;
++  font-size: 11px;
++  width: 100%;
++}
++
++.walk-table th,
++.walk-table td {
++  border: 1px solid var(--border-color-deemphasized);
++  padding: 3px 5px;
++  text-align: start;
++  vertical-align: top;
++}
++
++.walk-table th {
++  background-color: var(--background-color-canvas);
++  font-weight: var(--font-weight-semibold);
 +}
 +
 +.assistant-actions {
@@ -2162,10 +2299,10 @@ index 00000000..f7586c63
 +</html>
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..b5931c49
+index 00000000..d7ce4d93
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
-@@ -0,0 +1,1899 @@
+@@ -0,0 +1,2163 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -2731,6 +2868,121 @@ index 00000000..b5931c49
 +  return dots;
 +}
 +
++const WAIT_PHRASES = [
++  "Thinking",
++  "Investigating",
++  "Analyzing the target",
++  "Finding the best approach",
++  "Reviewing the evidence",
++  "Planning the next step",
++];
++
++function hostOf(url) {
++  try {
++    return new URL(url).host;
++  } catch {
++    return url || "";
++  }
++}
++
++function liveActionLabel(action = {}, page = null) {
++  switch (action.type) {
++    case "search":
++      return `Learning skill: ${action.query || "security knowledge"}`;
++    case "knowledge":
++      return `Reading skill: ${action.id || ""}`;
++    case "read":
++      return page?.title ? `Reading ${page.title}` : "Reading the page";
++    case "click":
++      return `Investigating: ${action.selector || "element"}`;
++    case "type":
++      return `Submitting input into ${action.selector || "form"}`;
++    case "navigate":
++      return `Navigating to ${hostOf(action.url)}`;
++    case "scroll":
++      return "Scrolling the page";
++    case "back":
++      return "Going back";
++    case "forward":
++      return "Going forward";
++    case "flag":
++      return "Capturing the flag";
++    case "report":
++      return "Generating the engagement report";
++    case "answer":
++      return "Composing the answer";
++    default:
++      return describeAction(action);
++  }
++}
++
++function truncate(text, max = 96) {
++  const value = String(text || "").replace(/\s+/g, " ").trim();
++  return value.length > max ? `${value.slice(0, max)}…` : value;
++}
++
++function partialThought(text) {
++  const match = String(text).match(/"thought"\s*:\s*"((?:[^"\\]|\\.)*)"/);
++  if (!match) {
++    return "";
++  }
++  return match[1]
++    .replace(/\\n/g, " ")
++    .replace(/\\t/g, " ")
++    .replace(/\\"/g, '"')
++    .replace(/\\u[0-9a-fA-F]{4}/g, "")
++    .trim();
++}
++
++function partialAnswer(text) {
++  const source = String(text);
++  if (/"action"\s*:/.test(source)) {
++    return "";
++  }
++  const match = source.match(/"answer"\s*:\s*"((?:[^"\\]|\\.)*)/);
++  if (!match) {
++    return "";
++  }
++  return match[1]
++    .replace(/\\n/g, "\n")
++    .replace(/\\"/g, '"')
++    .replace(/\\t/g, "  ");
++}
++
++function startStatusRotation(view, phrases = WAIT_PHRASES) {
++  stopStatusRotation(view);
++  let index = 0;
++  const tick = () => {
++    const target = view.reasoningLabel || view.statusText;
++    if (target) {
++      target.textContent = `${phrases[index % phrases.length]}…`;
++    }
++    index++;
++  };
++  tick();
++  view.statusTimer = setInterval(tick, 1500);
++}
++
++function stopStatusRotation(view) {
++  if (view.statusTimer) {
++    clearInterval(view.statusTimer);
++    view.statusTimer = null;
++  }
++}
++
++function setLiveActivity(view, text) {
++  if (!text) {
++    return;
++  }
++  const label = truncate(text);
++  if (view.reasoningLabel) {
++    view.reasoningLabel.textContent = label;
++  }
++  if (view.currentStep) {
++    view.currentStep.label.textContent = label;
++  }
++}
++
 +function createAssistantView({ withReasoning = false } = {}) {
 +  dom.empty.hidden = true;
 +  const wrapper = document.createElement("div");
@@ -2742,18 +2994,18 @@ index 00000000..b5931c49
 +  if (withReasoning) {
 +    reasoning = document.createElement("details");
 +    reasoning.className = "reasoning";
-+    reasoning.open = true;
++    reasoning.open = false;
 +    const summary = document.createElement("summary");
 +    reasoningLabel = document.createElement("span");
 +    reasoningLabel.className = "reasoning-label";
-+    reasoningLabel.textContent = "Working";
++    reasoningLabel.textContent = "Thinking…";
 +    const chevron = document.createElement("img");
 +    chevron.className = "icon icon-12 chevron";
 +    chevron.src = "chrome://global/skin/icons/arrow-down.svg";
 +    chevron.alt = "";
 +    summary.append(dotsElement(), reasoningLabel, chevron);
 +    reasoningBody = document.createElement("div");
-+    reasoningBody.className = "reasoning-body";
++    reasoningBody.className = "reasoning-body walkthrough";
 +    reasoning.append(summary, reasoningBody);
 +    wrapper.appendChild(reasoning);
 +  }
@@ -2762,7 +3014,7 @@ index 00000000..b5931c49
 +  status.className = "assistant-status";
 +  const statusText = document.createElement("span");
 +  statusText.className = "status-text";
-+  statusText.textContent = "Connecting";
++  statusText.textContent = "Connecting…";
 +  status.append(dotsElement(), statusText);
 +
 +  const body = document.createElement("div");
@@ -2779,6 +3031,8 @@ index 00000000..b5931c49
 +    reasoning,
 +    reasoningBody,
 +    reasoningLabel,
++    statusTimer: null,
++    currentStep: null,
 +    timing: "",
 +  };
 +}
@@ -2807,33 +3061,127 @@ index 00000000..b5931c49
 +  view.statusText.textContent = text;
 +}
 +
-+function appendReasoningStep(view, step) {
++function beginWalkStep(view, { n, title }) {
 +  if (!view.reasoningBody) {
++    return null;
++  }
++  const el = document.createElement("details");
++  el.className = "walk-step";
++  el.dataset.state = "running";
++  const head = document.createElement("summary");
++  head.className = "walk-head";
++  const num = document.createElement("span");
++  num.className = "walk-num";
++  num.textContent = String(n);
++  const icon = document.createElement("span");
++  icon.className = "walk-icon";
++  icon.append(dotsElement());
++  const label = document.createElement("span");
++  label.className = "walk-title";
++  label.textContent = title;
++  const chevron = document.createElement("img");
++  chevron.className = "icon icon-12 chevron";
++  chevron.src = "chrome://global/skin/icons/arrow-down.svg";
++  chevron.alt = "";
++  head.append(num, icon, label, chevron);
++  const detail = document.createElement("div");
++  detail.className = "walk-detail";
++  el.append(head, detail);
++  view.reasoningBody.appendChild(el);
++  view.currentStep = { el, icon, label, detail, n };
++  scrollChat();
++  return view.currentStep;
++}
++
++function renderActionCode(action) {
++  if (action.type === "click" || action.type === "type" || action.type === "scroll") {
++    const lines = [];
++    if (action.type === "click") {
++      lines.push(`document.querySelector(${JSON.stringify(action.selector || "")})?.click();`);
++    } else if (action.type === "type") {
++      lines.push(`const el = document.querySelector(${JSON.stringify(action.selector || "")});`);
++      lines.push(`el.value = ${JSON.stringify(action.text || "")};`);
++      if (action.submit) {
++        lines.push("el.form?.requestSubmit();");
++      }
++    } else {
++      lines.push(`window.scrollBy(0, ${Number(action.y) || 600});`);
++    }
++    return lines.join("\n");
++  }
++  return JSON.stringify(action, null, 2);
++}
++
++function renderResultHtml(action, result, page) {
++  if (!result) {
++    return "";
++  }
++  if (result.ok === false) {
++    return `<div class="walk-section"><div class="walk-section-title">Data returned</div><pre class="walk-pre">${escapeHtml(result.error || "failed")}</pre></div>`;
++  }
++  if (action.type === "search" && Array.isArray(result.results)) {
++    const rows = result.results
++      .slice(0, 8)
++      .map(
++        item =>
++          `<tr><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.source)}</td></tr>`
++      )
++      .join("");
++    return `<div class="walk-section"><div class="walk-section-title">Skills found</div><table class="walk-table"><thead><tr><th>Skill</th><th>Source</th></tr></thead><tbody>${rows}</tbody></table></div>`;
++  }
++  if (action.type === "knowledge" && result.content) {
++    return `<div class="walk-section"><div class="walk-section-title">${escapeHtml(result.title || "Skill")}</div><pre class="walk-pre">${escapeHtml(result.content.slice(0, 700))}</pre></div>`;
++  }
++  if (action.type === "flag") {
++    return `<div class="walk-section"><div class="walk-section-title">Data returned</div><pre class="walk-pre">${escapeHtml(result.flag || "")}</pre></div>`;
++  }
++  if (page && page.text) {
++    const snippet = `${page.title ? `${page.title}\n` : ""}${page.text.slice(0, 500)}`;
++    return `<div class="walk-section"><div class="walk-section-title">Observation</div><pre class="walk-pre">${escapeHtml(snippet)}</pre></div>`;
++  }
++  return "";
++}
++
++function markWalkStepDone(view, stepRecord, page) {
++  const step = view.currentStep;
++  if (!step) {
 +    return;
 +  }
-+  const row = document.createElement("div");
-+  row.className = "reasoning-step";
-+  const strong = document.createElement("strong");
-+  strong.textContent = `Step ${step.n}`;
-+  const action = document.createElement("span");
-+  action.textContent = ` · ${describeAction(step.action || { type: "read" })}`;
-+  row.append(strong, action);
-+  if (step.thought) {
++  step.el.dataset.state = "done";
++  const check = document.createElement("img");
++  check.className = "icon icon-12";
++  check.src = "chrome://global/skin/icons/check.svg";
++  check.alt = "";
++  step.icon.replaceChildren(check);
++  step.label.textContent = liveActionLabel(stepRecord.action || {}, page);
++  const detail = step.detail;
++  detail.replaceChildren();
++  if (stepRecord.thought) {
 +    const thought = document.createElement("div");
-+    thought.className = "reasoning-thought";
-+    thought.textContent = step.thought;
-+    row.appendChild(thought);
++    thought.className = "walk-thought";
++    thought.textContent = stepRecord.thought;
++    detail.appendChild(thought);
 +  }
-+  view.reasoningBody.appendChild(row);
++  const codeBlock = document.createElement("div");
++  codeBlock.className = "walk-section";
++  codeBlock.innerHTML = `<div class="walk-section-title">Code executed</div><pre class="walk-pre" tabindex="0">${escapeHtml(renderActionCode(stepRecord.action || {}))}</pre>`;
++  detail.appendChild(codeBlock);
++  const resultHtml = renderResultHtml(stepRecord.action || {}, stepRecord.result, page);
++  if (resultHtml) {
++    const holder = document.createElement("div");
++    holder.innerHTML = resultHtml;
++    detail.appendChild(holder);
++  }
++  view.currentStep = null;
 +  scrollChat();
 +}
 +
 +function finalizeReasoning(view, elapsedMs, count, stopped = false) {
++  stopStatusRotation(view);
 +  if (!view.reasoning) {
 +    return;
 +  }
-+  view.reasoning.open = false;
-+  const dots = view.reasoning.querySelector(".dots");
++  const dots = view.reasoning.querySelector("summary .dots");
 +  if (dots) {
 +    const check = document.createElement("img");
 +    check.className = "icon icon-12";
@@ -2841,10 +3189,15 @@ index 00000000..b5931c49
 +    check.alt = "";
 +    dots.replaceWith(check);
 +  }
++  if (!count) {
++    view.reasoning.hidden = true;
++    return;
++  }
++  view.reasoning.open = false;
 +  if (view.reasoningLabel) {
 +    view.reasoningLabel.textContent = stopped
-+      ? "Stopped"
-+      : `Thought for ${formatTiming(elapsedMs)} · ${count} step${count === 1 ? "" : "s"}`;
++      ? `Stopped · ${count} step${count === 1 ? "" : "s"}`
++      : `Show agent walkthrough · ${count} step${count === 1 ? "" : "s"} · ${formatTiming(elapsedMs)}`;
 +  }
 +}
 +
@@ -3134,6 +3487,7 @@ index 00000000..b5931c49
 +  const assistant = { role: "assistant", content: "" };
 +  state.messages.push(assistant);
 +  const view = createAssistantView();
++  startStatusRotation(view);
 +  const started = performance.now();
 +  let firstToken = true;
 +  const cursor = document.createElement("span");
@@ -3152,6 +3506,7 @@ index 00000000..b5931c49
 +        assistant.content += token;
 +        if (firstToken) {
 +          firstToken = false;
++          stopStatusRotation(view);
 +          setAssistantStatus(view, null);
 +        }
 +        view.body.replaceChildren(
@@ -3166,12 +3521,14 @@ index 00000000..b5931c49
 +    } else {
 +      await streamOpenAI(args);
 +    }
++    stopStatusRotation(view);
 +    setAssistantStatus(view, null);
 +    view.body.innerHTML = renderMarkdown(assistant.content);
 +    view.timing = formatTiming(performance.now() - started);
 +    captureFlags(assistant.content, getActiveTabInfo().url);
 +    attachAssistantActions(view, { text: assistant.content });
 +  } catch (error) {
++    stopStatusRotation(view);
 +    setAssistantStatus(view, null);
 +    if (error.name === "AbortError") {
 +      assistant.content += "\n\n_[stopped]_";
@@ -3182,6 +3539,7 @@ index 00000000..b5931c49
 +    view.timing = formatTiming(performance.now() - started);
 +    attachAssistantActions(view, { text: assistant.content });
 +  } finally {
++    stopStatusRotation(view);
 +    setStreaming(false);
 +    state.abortController = null;
 +    state.session.lastAnswer = assistant.content;
@@ -3403,7 +3761,7 @@ index 00000000..b5931c49
 +  }
 +}
 +
-+async function completeChat({ cfg, key, messages, signal, system }) {
++async function completeChat({ cfg, key, messages, signal, system, onToken }) {
 +  let output = "";
 +  const args = {
 +    cfg,
@@ -3413,6 +3771,9 @@ index 00000000..b5931c49
 +    system,
 +    onToken: token => {
 +      output += token;
++      if (onToken) {
++        onToken(token, output);
++      }
 +    },
 +  };
 +  if (cfg.provider === "anthropic") {
@@ -3443,50 +3804,94 @@ index 00000000..b5931c49
 +  const view = createAssistantView({ withReasoning: true });
 +  view.status.hidden = true;
 +  const started = performance.now();
-+  let recordedSteps = 0;
++  let stepNo = 0;
 +  state.abortController = new AbortController();
 +  const signal = state.abortController.signal;
 +  setStreaming(true);
 +  const system = buildSystemPrompt(true);
++  startStatusRotation(view);
 +
 +  try {
 +    const history = state.messages.slice(-24);
 +    const initialPage = await collectPageContext();
 +    if (initialPage) {
-+      const step = {
-+        n: 0,
++      stepNo += 1;
++      beginWalkStep(view, { n: stepNo, title: "Reading the active page" });
++      const round = {
++        n: stepNo,
 +        thought: "Initial reconnaissance of the active page.",
 +        action: { type: "read" },
 +        result: { ok: true },
 +        url: initialPage.url,
 +        title: initialPage.title,
 +      };
-+      state.session.steps.push(step);
-+      appendReasoningStep(view, step);
-+      recordedSteps++;
++      state.session.steps.push(round);
++      markWalkStepDone(view, round, initialPage);
 +    }
 +    let observation = null;
 +    let finished = false;
-+    for (let step = 1; step <= MAX_STEPS && !finished; step++) {
++    for (let attempt = 1; attempt <= MAX_STEPS && !finished; attempt++) {
 +      const messages = observation
 +        ? [...history, { role: "user", content: observation }]
 +        : history;
-+      const raw = await completeChat({ cfg, key, messages, signal, system });
++      stepNo += 1;
++      beginWalkStep(view, { n: stepNo, title: "Thinking…" });
++      startStatusRotation(view);
++      let live = true;
++      const raw = await completeChat({
++        cfg,
++        key,
++        messages,
++        signal,
++        system,
++        onToken: (token, full) => {
++          const thought = partialThought(full);
++          if (thought) {
++            if (live) {
++              stopStatusRotation(view);
++              live = false;
++            }
++            setLiveActivity(view, thought);
++          }
++          const answer = partialAnswer(full);
++          if (answer) {
++            view.body.innerHTML = renderMarkdown(cleanAssistantText(answer));
++          }
++          scrollChat();
++        },
++      });
 +      const parsed = extractJson(raw);
 +      if (!parsed || !parsed.action || parsed.action.type === "done") {
 +        assistant.content = parsed?.answer || raw;
++        if (view.currentStep) {
++          if (parsed?.thought) {
++            markWalkStepDone(
++              view,
++              {
++                action: { type: "answer" },
++                thought: parsed.thought,
++                result: { ok: true },
++              },
++              null
++            );
++          } else {
++            view.currentStep.el.remove();
++            view.currentStep = null;
++            stepNo -= 1;
++          }
++        }
 +        finished = true;
 +        break;
 +      }
++      setLiveActivity(view, liveActionLabel(parsed.action));
 +      const stepRecord = {
-+        n: step,
++        n: stepNo,
 +        thought: parsed.thought || "",
 +        action: parsed.action,
 +        result: null,
 +        url: "",
 +        title: "",
 +      };
-+      appendReasoningStep(view, stepRecord);
 +      const result = await executeAction(parsed.action);
 +      await sleep(900);
 +      const page = await collectPageContext();
@@ -3494,12 +3899,12 @@ index 00000000..b5931c49
 +      stepRecord.url = page?.url || "";
 +      stepRecord.title = page?.title || "";
 +      state.session.steps.push(stepRecord);
-+      recordedSteps++;
++      markWalkStepDone(view, stepRecord, page);
 +      if (page?.text) {
 +        captureFlags(page.text, page.url);
 +      }
 +      observation = [
-+        `[Observation after step ${step}]`,
++        `[Observation after step ${stepNo}]`,
 +        `Action: ${JSON.stringify(parsed.action)}`,
 +        `Result: ${JSON.stringify(result)}`,
 +        page
@@ -3517,9 +3922,10 @@ index 00000000..b5931c49
 +    captureFlags(assistant.content, getActiveTabInfo().url);
 +    view.body.innerHTML = renderMarkdown(assistant.content);
 +    view.timing = formatTiming(performance.now() - started);
-+    finalizeReasoning(view, performance.now() - started, recordedSteps);
++    finalizeReasoning(view, performance.now() - started, stepNo);
 +    attachAssistantActions(view, { text: assistant.content });
 +  } catch (error) {
++    stopStatusRotation(view);
 +    if (error.name === "AbortError") {
 +      assistant.content = "_[stopped]_";
 +    } else {
@@ -3527,12 +3933,7 @@ index 00000000..b5931c49
 +    }
 +    view.body.innerHTML = renderMarkdown(assistant.content);
 +    view.timing = formatTiming(performance.now() - started);
-+    finalizeReasoning(
-+      view,
-+      performance.now() - started,
-+      recordedSteps,
-+      true
-+    );
++    finalizeReasoning(view, performance.now() - started, stepNo, true);
 +    attachAssistantActions(view, {
 +      text: assistant.content,
 +      allowRegenerate: false,
