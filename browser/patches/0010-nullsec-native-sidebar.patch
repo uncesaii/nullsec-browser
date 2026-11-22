@@ -1,6 +1,6 @@
 diff --git a/browser/actors/NullSecChild.sys.mjs b/browser/actors/NullSecChild.sys.mjs
 new file mode 100644
-index 00000000..6e2772a0
+index 00000000..48c6f4b0
 --- /dev/null
 +++ b/browser/actors/NullSecChild.sys.mjs
 @@ -0,0 +1,147 @@
@@ -8,7 +8,7 @@ index 00000000..6e2772a0
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 +
-+const MAX_TEXT = 12000;
++const MAX_TEXT = 20000;
 +const MAX_CONTROLS = 150;
 +
 +export class NullSecChild extends JSWindowActorChild {
@@ -276,10 +276,10 @@ index 00000000..f5f73c19
 \ No newline at end of file
 diff --git a/browser/components/nullsec/sidebar.css b/browser/components/nullsec/sidebar.css
 new file mode 100644
-index 00000000..f7c2187d
+index 00000000..749d44f6
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.css
-@@ -0,0 +1,793 @@
+@@ -0,0 +1,872 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -713,6 +713,79 @@ index 00000000..f7c2187d
 +  background: none;
 +}
 +
++.ns-msg-body h1,
++.ns-msg-body h2,
++.ns-msg-body h3,
++.ns-report h1,
++.ns-report h2,
++.ns-report h3 {
++  margin: 9px 0 4px;
++  line-height: 1.3;
++}
++
++.ns-msg-body h1,
++.ns-report h1 {
++  font-size: 14px;
++}
++
++.ns-msg-body h2,
++.ns-report h2 {
++  font-size: 12.5px;
++}
++
++.ns-msg-body h3,
++.ns-report h3 {
++  font-size: 12px;
++}
++
++.ns-msg-body p,
++.ns-report p {
++  margin: 0 0 6px;
++}
++
++.ns-msg-body ul,
++.ns-msg-body ol,
++.ns-report ul,
++.ns-report ol {
++  margin: 0 0 6px;
++  padding-inline-start: 18px;
++}
++
++.ns-msg-body li,
++.ns-report li {
++  margin: 1px 0;
++}
++
++.ns-msg-body hr,
++.ns-report hr {
++  margin: 8px 0;
++  border: 0;
++  border-top: 1px solid var(--ns-border);
++}
++
++.ns-msg-body table,
++.ns-report table {
++  width: 100%;
++  margin: 4px 0 8px;
++  border-collapse: collapse;
++  font-size: 11px;
++}
++
++.ns-msg-body th,
++.ns-msg-body td,
++.ns-report th,
++.ns-report td {
++  padding: 3px 6px;
++  border-bottom: 1px solid var(--ns-border);
++  text-align: start;
++  vertical-align: top;
++}
++
++.ns-msg-body th,
++.ns-report th {
++  font-weight: 600;
++}
++
 +/* Composer */
 +.ns-composer {
 +  border-top: 1px solid var(--ns-border);
@@ -1057,16 +1130,22 @@ index 00000000..f7c2187d
 +
 +.ns-report {
 +  margin: 0 0 8px;
-+  padding: 10px;
++  padding: 10px 12px;
 +  border-radius: 8px;
 +  background: color-mix(in srgb, currentColor 6%, transparent);
-+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-+  font-size: 11px;
-+  line-height: 1.5;
-+  white-space: pre-wrap;
++  font-size: 11.5px;
++  line-height: 1.55;
 +  word-break: break-word;
 +  max-height: 420px;
 +  overflow: auto;
++}
++
++.ns-report code {
++  padding: 1px 4px;
++  border-radius: 4px;
++  background: var(--ns-code-bg);
++  font-family: var(--ns-mono);
++  font-size: 10.5px;
 +}
 +
 +.ns-report-actions {
@@ -1346,10 +1425,10 @@ index 00000000..25e713c8
 \ No newline at end of file
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..d473fe8c
+index 00000000..0c39a73a
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
-@@ -0,0 +1,1621 @@
+@@ -0,0 +1,1739 @@
 +
 +const KEY_PREF_PREFIX = "browser.nullsec.ai.key.";
 +const KEY_LABEL_PREFIX = "nullsec-ai-key-";
@@ -1460,6 +1539,131 @@ index 00000000..d473fe8c
 +    .replaceAll('"', "&quot;");
 +}
 +
++function renderInline(text) {
++  let chunk = String(text);
++  chunk = chunk.replace(/`([^`]+)`/g, "<code>$1</code>");
++  chunk = chunk.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
++  chunk = chunk.replace(
++    /(^|[\s(])_([^_\n]+)_(?=[\s).,!?:;]|$)/g,
++    "$1<em>$2</em>"
++  );
++  chunk = chunk.replace(
++    /(https?:\/\/[^\s<]+)/g,
++    '<a href="$1" target="_blank" rel="noreferrer">$1</a>'
++  );
++  return chunk;
++}
++
++function splitTableRow(line) {
++  let row = line.trim();
++  if (row.startsWith("|")) {
++    row = row.slice(1);
++  }
++  if (row.endsWith("|")) {
++    row = row.slice(0, -1);
++  }
++  return row.split("|").map(cell => cell.trim());
++}
++
++function renderBlocks(text) {
++  const lines = text.split(/\r?\n/);
++  const html = [];
++  let paragraph = [];
++  let list = null;
++  const flushParagraph = () => {
++    if (paragraph.length) {
++      html.push(`<p>${paragraph.join("<br>")}</p>`);
++      paragraph = [];
++    }
++  };
++  const flushList = () => {
++    if (list) {
++      html.push(
++        `<${list.type}>${list.items
++          .map(item => `<li>${item}</li>`)
++          .join("")}</${list.type}>`
++      );
++      list = null;
++    }
++  };
++  for (let index = 0; index < lines.length; index++) {
++    const trimmed = lines[index].trim();
++    if (!trimmed) {
++      flushParagraph();
++      flushList();
++      continue;
++    }
++    const heading = trimmed.match(/^(#{1,6})\s+(.*)$/);
++    if (heading) {
++      flushParagraph();
++      flushList();
++      const level = heading[1].length;
++      html.push(`<h${level}>${renderInline(heading[2])}</h${level}>`);
++      continue;
++    }
++    if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
++      flushParagraph();
++      flushList();
++      html.push("<hr>");
++      continue;
++    }
++    if (
++      trimmed.includes("|") &&
++      lines[index + 1] &&
++      /^\s*\|?\s*:?-{2,}/.test(lines[index + 1])
++    ) {
++      flushParagraph();
++      flushList();
++      const header = splitTableRow(trimmed);
++      const rows = [];
++      index += 2;
++      while (index < lines.length && lines[index].trim().includes("|")) {
++        rows.push(splitTableRow(lines[index]));
++        index++;
++      }
++      index--;
++      html.push(
++        `<table><thead><tr>${header
++          .map(cell => `<th>${renderInline(cell)}</th>`)
++          .join("")}</tr></thead><tbody>${rows
++          .map(
++            row =>
++              `<tr>${row
++                .map(cell => `<td>${renderInline(cell)}</td>`)
++                .join("")}</tr>`
++          )
++          .join("")}</tbody></table>`
++      );
++      continue;
++    }
++    const bullet = trimmed.match(/^[-*]\s+(.*)$/);
++    if (bullet) {
++      flushParagraph();
++      if (!list || list.type !== "ul") {
++        flushList();
++        list = { type: "ul", items: [] };
++      }
++      list.items.push(renderInline(bullet[1]));
++      continue;
++    }
++    const numbered = trimmed.match(/^\d+[.)]\s+(.*)$/);
++    if (numbered) {
++      flushParagraph();
++      if (!list || list.type !== "ol") {
++        flushList();
++        list = { type: "ol", items: [] };
++      }
++      list.items.push(renderInline(numbered[1]));
++      continue;
++    }
++    flushList();
++    paragraph.push(renderInline(trimmed));
++  }
++  flushParagraph();
++  flushList();
++  return html.join("");
++}
++
 +function renderMarkdown(text) {
 +  const parts = String(text).split(/```/);
 +  let html = "";
@@ -1469,14 +1673,7 @@ index 00000000..d473fe8c
 +      html += `<pre><code>${escapeHtml(trimmed)}</code></pre>`;
 +      return;
 +    }
-+    let chunk = escapeHtml(part);
-+    chunk = chunk.replace(/`([^`]+)`/g, "<code>$1</code>");
-+    chunk = chunk.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-+    chunk = chunk.replace(
-+      /(https?:\/\/[^\s<]+)/g,
-+      '<a href="$1" target="_blank" rel="noreferrer">$1</a>'
-+    );
-+    html += chunk;
++    html += renderBlocks(escapeHtml(part));
 +  });
 +  return html;
 +}
@@ -2368,9 +2565,9 @@ index 00000000..d473fe8c
 +  const role = document.createElement("div");
 +  role.className = "ns-msg-role";
 +  role.textContent = "Flag report";
-+  const pre = document.createElement("pre");
-+  pre.className = "ns-report";
-+  pre.textContent = markdown;
++  const report = document.createElement("div");
++  report.className = "ns-report";
++  report.innerHTML = renderMarkdown(markdown);
 +  const actions = document.createElement("div");
 +  actions.className = "ns-report-actions";
 +  const copy = document.createElement("button");
@@ -2398,7 +2595,7 @@ index 00000000..d473fe8c
 +    }
 +  });
 +  actions.append(copy, save);
-+  wrapper.append(role, pre, actions);
++  wrapper.append(role, report, actions);
 +  dom.chatEmpty.hidden = true;
 +  dom.chatMessages.appendChild(wrapper);
 +  scrollChat();
