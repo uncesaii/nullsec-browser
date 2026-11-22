@@ -428,10 +428,10 @@ index 00000000..f5f73c19
 \ No newline at end of file
 diff --git a/browser/components/nullsec/sidebar.css b/browser/components/nullsec/sidebar.css
 new file mode 100644
-index 00000000..4be964cd
+index 00000000..c37e5b5b
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.css
-@@ -0,0 +1,313 @@
+@@ -0,0 +1,352 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -447,6 +447,7 @@ index 00000000..4be964cd
 +  height: 100%;
 +  margin: 0;
 +  overflow: hidden;
++  position: relative;
 +}
 +
 +#header {
@@ -507,14 +508,44 @@ index 00000000..4be964cd
 +}
 +
 +#settings {
-+  border-bottom: 1px solid var(--border-color);
-+  max-height: 55%;
-+  overflow-y: auto;
-+  padding: var(--space-small) var(--space-large) var(--space-medium);
++  background-color: var(--sidebar-background-color);
++  display: flex;
++  flex-direction: column;
++  inset: 0;
++  position: absolute;
++  z-index: 10;
 +}
 +
 +#settings[hidden] {
 +  display: none;
++}
++
++.settings-header {
++  align-items: center;
++  border-bottom: 1px solid var(--border-color);
++  display: flex;
++  gap: var(--space-small);
++  padding: var(--space-small) var(--space-large);
++}
++
++.settings-title {
++  flex: 1;
++  font-size: 15px;
++  font-weight: var(--font-weight-semibold);
++}
++
++.settings-scroll {
++  display: flex;
++  flex: 1;
++  flex-direction: column;
++  gap: var(--space-medium);
++  min-height: 0;
++  overflow-y: auto;
++  padding: var(--space-large);
++}
++
++.settings-scroll moz-card {
++  margin-block-start: 0;
 +}
 +
 +.settings-fields {
@@ -528,12 +559,20 @@ index 00000000..4be964cd
 +  width: 100%;
 +}
 +
-+.settings-actions {
++.settings-help {
++  color: var(--text-color-deemphasized);
++  font-size: 12px;
++  margin: 0;
++}
++
++.settings-footer {
 +  align-items: center;
++  background-color: var(--sidebar-background-color);
++  border-top: 1px solid var(--border-color);
 +  display: flex;
 +  flex-wrap: wrap;
 +  gap: var(--space-small);
-+  margin-block-start: var(--space-small);
++  padding: var(--space-small) var(--space-large) var(--space-large);
 +}
 +
 +.settings-status {
@@ -747,10 +786,10 @@ index 00000000..4be964cd
 +}
 diff --git a/browser/components/nullsec/sidebar.html b/browser/components/nullsec/sidebar.html
 new file mode 100644
-index 00000000..37ed9dca
+index 00000000..5e0eb9e6
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.html
-@@ -0,0 +1,154 @@
+@@ -0,0 +1,191 @@
 +<!-- This Source Code Form is subject to the terms of the Mozilla Public
 +   - License, v. 2.0. If a copy of the MPL was not distributed with this
 +   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
@@ -843,40 +882,77 @@ index 00000000..37ed9dca
 +    </div>
 +
 +    <section id="settings" hidden>
-+      <moz-card heading="Settings">
-+        <div class="settings-fields">
-+          <moz-input-text id="ai-baseurl" label="Base URL"></moz-input-text>
-+          <moz-input-text id="ai-model" label="Model"></moz-input-text>
-+          <moz-input-password id="ai-key" label="API key"></moz-input-password>
-+          <moz-input-number
-+            id="ai-temp"
-+            label="Temperature"
-+            min="0"
-+            max="2"
-+            step="0.1"
-+          ></moz-input-number>
-+          <moz-textarea
-+            id="ai-system"
-+            label="System prompt"
-+            placeholder="Leave empty to use the NullSec default."
-+          ></moz-textarea>
-+          <moz-toggle
-+            id="ai-autopilot"
-+            label="Autopilot"
-+            description="Let NullSec operate the active tab."
-+          ></moz-toggle>
-+          <moz-toggle
-+            id="ai-page-context"
-+            label="Include page content"
-+            description="Send visible text and controls with each message."
-+          ></moz-toggle>
-+        </div>
-+        <div class="settings-actions">
-+          <moz-button id="ai-save" type="primary">Save</moz-button>
-+          <moz-button id="ai-clear-key" type="ghost">Forget key</moz-button>
-+          <span id="ai-status" class="settings-status"></span>
-+        </div>
-+      </moz-card>
++      <div class="settings-header">
++        <moz-button
++          id="settings-back"
++          type="icon ghost"
++          iconsrc="chrome://global/skin/icons/arrow-left.svg"
++          aria-label="Back"
++          title="Back"
++        ></moz-button>
++        <span class="settings-title">Settings</span>
++        <moz-button
++          id="settings-close"
++          type="icon ghost"
++          iconsrc="chrome://global/skin/icons/close.svg"
++          aria-label="Close sidebar"
++          title="Close sidebar"
++        ></moz-button>
++      </div>
++      <div class="settings-scroll">
++        <moz-card heading="Endpoint">
++          <div class="settings-fields">
++            <moz-input-text id="ai-baseurl" label="Base URL"></moz-input-text>
++            <moz-input-text id="ai-model" label="Model"></moz-input-text>
++            <moz-input-number
++              id="ai-temp"
++              label="Temperature"
++              min="0"
++              max="2"
++              step="0.1"
++            ></moz-input-number>
++          </div>
++        </moz-card>
++        <moz-card heading="Credentials">
++          <div class="settings-fields">
++            <moz-input-password
++              id="ai-key"
++              label="API key"
++            ></moz-input-password>
++            <p class="settings-help">
++              Stored with OS encryption. Leave blank to keep the current key.
++            </p>
++          </div>
++        </moz-card>
++        <moz-card heading="Behavior">
++          <div class="settings-fields">
++            <moz-toggle
++              id="ai-autopilot"
++              label="Autopilot"
++              description="Let NullSec operate the active tab."
++            ></moz-toggle>
++            <moz-toggle
++              id="ai-page-context"
++              label="Include page content"
++              description="Send visible text and controls with each message."
++            ></moz-toggle>
++          </div>
++        </moz-card>
++        <moz-card heading="System prompt">
++          <div class="settings-fields">
++            <moz-textarea
++              id="ai-system"
++              label="Custom instructions"
++              placeholder="Leave empty to use the NullSec default."
++            ></moz-textarea>
++          </div>
++        </moz-card>
++      </div>
++      <div class="settings-footer">
++        <moz-button id="ai-save" type="primary">Save</moz-button>
++        <moz-button id="ai-clear-key" type="ghost">Forget key</moz-button>
++        <span id="ai-status" class="settings-status"></span>
++      </div>
 +    </section>
 +
 +    <div id="message-container">
@@ -907,10 +983,10 @@ index 00000000..37ed9dca
 +</html>
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..7ccb305e
+index 00000000..1cc4288d
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
-@@ -0,0 +1,1130 @@
+@@ -0,0 +1,1411 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -976,6 +1052,12 @@ index 00000000..7ccb305e
 +  messages: [],
 +  streaming: false,
 +  abortController: null,
++  session: {
++    startedAt: new Date().toISOString(),
++    objectives: [],
++    steps: [],
++    lastAnswer: "",
++  },
 +};
 +
 +const dom = {};
@@ -1182,6 +1264,20 @@ index 00000000..7ccb305e
 +  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 +}
 +
++function mdCell(value) {
++  return (
++    String(value ?? "")
++      .replaceAll("|", "\\|")
++      .replace(/\r?\n/g, " ")
++      .trim() || "-"
++  );
++}
++
++function timestamp(value) {
++  const date = value instanceof Date ? value : new Date(value);
++  return Number.isNaN(date.getTime()) ? "-" : date.toISOString();
++}
++
 +function apiUrl(base, path) {
 +  const clean = base.replace(/\/+$/, "");
 +  if (clean.endsWith("/v1")) {
@@ -1300,6 +1396,10 @@ index 00000000..7ccb305e
 +  dom.contextTitle.title = tab.title || tab.url;
 +  dom.contextUrl.textContent = tab.url;
 +  dom.contextUrl.title = tab.url;
++}
++
++function showSettings(visible) {
++  dom.settings.hidden = !visible;
 +}
 +
 +function setStreaming(value) {
@@ -1436,14 +1536,15 @@ index 00000000..7ccb305e
 +  if (getBoolPref(PREF.autopilot, false)) {
 +    return runAgent(trimmed);
 +  }
++  state.session.objectives.push(trimmed);
 +  const cfg = getProviderConfig();
 +  const key = getKey(cfg.provider);
 +  if (!key && cfg.provider !== "compatible") {
-+    dom.settings.hidden = false;
++    showSettings(true);
 +    dom.status.textContent = "Add an API key for this provider.";
 +    return;
 +  }
-+  dom.settings.hidden = true;
++  showSettings(false);
 +
 +  let userContent = trimmed;
 +  if (getBoolPref(PREF.pageContext, true)) {
@@ -1506,6 +1607,7 @@ index 00000000..7ccb305e
 +  } finally {
 +    setStreaming(false);
 +    state.abortController = null;
++    state.session.lastAnswer = assistant.content;
 +    scrollChat();
 +  }
 +}
@@ -1700,11 +1802,12 @@ index 00000000..7ccb305e
 +  const cfg = getProviderConfig();
 +  const key = getKey(cfg.provider);
 +  if (!key && cfg.provider !== "compatible") {
-+    dom.settings.hidden = false;
++    showSettings(true);
 +    dom.status.textContent = "Add an API key for this provider.";
 +    return;
 +  }
-+  dom.settings.hidden = true;
++  showSettings(false);
++  state.session.objectives.push(text.trim());
 +
 +  state.messages.push({ role: "user", content: text.trim() });
 +  addMessageElement({ role: "user", content: text.trim() });
@@ -1720,6 +1823,17 @@ index 00000000..7ccb305e
 +
 +  try {
 +    const history = state.messages.slice(-24);
++    const initialPage = await collectPageContext();
++    if (initialPage) {
++      state.session.steps.push({
++        n: 0,
++        thought: "Initial reconnaissance of the active page.",
++        action: { type: "read" },
++        result: { ok: true },
++        url: initialPage.url,
++        title: initialPage.title,
++      });
++    }
 +    let observation = null;
 +    let finished = false;
 +    for (let step = 1; step <= MAX_STEPS && !finished; step++) {
@@ -1740,6 +1854,14 @@ index 00000000..7ccb305e
 +      if (page?.text) {
 +        captureFlags(page.text, page.url);
 +      }
++      state.session.steps.push({
++        n: step,
++        thought: parsed.thought || "",
++        action: parsed.action,
++        result,
++        url: page?.url || "",
++        title: page?.title || "",
++      });
 +      observation = [
 +        `[Observation after step ${step}]`,
 +        `Action: ${JSON.stringify(parsed.action)}`,
@@ -1769,52 +1891,279 @@ index 00000000..7ccb305e
 +    state.messages.push(assistant);
 +    setStreaming(false);
 +    state.abortController = null;
++    state.session.lastAnswer = assistant.content;
 +    scrollChat();
 +  }
 +}
 +
 +function buildReportMarkdown() {
 +  const now = new Date();
++  const pad = value => String(value).padStart(2, "0");
++  const reportId = `NS-${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}-${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}`;
 +  const flags = NullSecStore.getFlags();
 +  const traffic = NullSecStore.getTraffic();
 +  const tab = getActiveTabInfo();
++  const steps = state.session.steps;
++  const objectives = state.session.objectives;
++  const objective = objectives[0] || "Not specified";
++  const solved = flags.length > 0;
++  const target = tab.url || "Not available";
++  const status = solved
++    ? `Solved — ${flags.length} flag${flags.length === 1 ? "" : "s"} recovered`
++    : "In progress — no flag recorded";
 +  const lines = [];
++
 +  lines.push("# NullSec Engagement Report");
 +  lines.push("");
-+  lines.push(`_Generated ${now.toISOString()}_`);
++  lines.push(`**Report ID:** ${reportId}`);
++  lines.push(`**Generated:** ${now.toISOString()}`);
++  lines.push("**Classification:** Confidential — Authorized Engagement");
++  lines.push("**Analyst:** NullSec AI");
++  lines.push("**Platform:** CTF / Authorized Security Assessment");
++  lines.push(`**Target:** ${target}`);
++  lines.push(`**Objective:** ${objective}`);
++  lines.push(`**Status:** ${status}`);
 +  lines.push("");
-+  lines.push("## Summary");
++  lines.push("---");
 +  lines.push("");
-+  lines.push(`- Active tab: ${tab.url || "none"}`);
-+  lines.push(`- Flags recovered: ${flags.length}`);
-+  lines.push(`- Requests captured this session: ${traffic.length}`);
++
++  lines.push("## 1. Executive Summary");
 +  lines.push("");
-+  lines.push("## Flags");
++  if (solved) {
++    lines.push(
++      `NullSec assessed ${target} for an authorized security objective and recovered ${flags.length} flag${flags.length === 1 ? "" : "s"}. This report documents the successful path, supporting evidence, the methodology used, and remediation guidance for any underlying exposure.`
++    );
++  } else {
++    lines.push(
++      `NullSec assessed ${target} for an authorized CTF/security objective. No flag was recorded during this session. This report documents the methodology, observations, and recommended next approaches.`
++    );
++  }
++  lines.push("");
++  lines.push(
++    `The session captured ${traffic.length} HTTP request${traffic.length === 1 ? "" : "s"} and recorded ${steps.length} agent action${steps.length === 1 ? "" : "s"}.`
++  );
++  lines.push("");
++
++  lines.push("## 2. Engagement Details");
++  lines.push("");
++  lines.push("| Field | Value |");
++  lines.push("| --- | --- |");
++  lines.push(`| Report ID | ${reportId} |`);
++  lines.push(`| Date | ${now.toISOString()} |`);
++  lines.push("| Analyst | NullSec AI |");
++  lines.push(`| Target | ${mdCell(target)} |`);
++  lines.push(`| Page title | ${mdCell(tab.title || "-")} |`);
++  lines.push(`| Objective | ${mdCell(objective)} |`);
++  if (objectives.length > 1) {
++    for (let index = 1; index < objectives.length; index++) {
++      lines.push(`| Follow-up ${index} | ${mdCell(objectives[index])} |`);
++    }
++  }
++  lines.push(`| Status | ${status} |`);
++  lines.push(`| Requests captured | ${traffic.length} |`);
++  lines.push(`| Flags recovered | ${flags.length} |`);
++  lines.push("| Tools | NullSec browser, AI agent, HTTP capture |");
++  lines.push("");
++
++  lines.push("## 3. Findings");
 +  lines.push("");
 +  if (!flags.length) {
-+    lines.push("_No flags recorded._");
++    lines.push("### 3.1 No Flag Recorded");
++    lines.push("");
++    lines.push("| Attribute | Value |");
++    lines.push("| --- | --- |");
++    lines.push("| Finding ID | F-01 |");
++    lines.push("| Type | CTF Flag — not recovered |");
++    lines.push("| Severity | Informational |");
++    lines.push(`| Asset | ${mdCell(target)} |`);
++    lines.push("| Status | In progress |");
++    lines.push("");
++    lines.push(
++      "No flag was captured during this session. The approach and recommended next steps are documented in Section 5."
++    );
++    lines.push("");
 +  } else {
-+    lines.push("| Flag | Source | Note |");
-+    lines.push("| --- | --- | --- |");
++    flags.forEach((flag, index) => {
++      const source = flag.url || target;
++      lines.push(`### 3.${index + 1} Flag Recovered — \`${flag.value}\``);
++      lines.push("");
++      lines.push("| Attribute | Value |");
++      lines.push("| --- | --- |");
++      lines.push(`| Finding ID | F-${pad(index + 1)} |`);
++      lines.push("| Type | CTF Flag |");
++      lines.push("| Severity | Informational |");
++      lines.push(`| Asset | ${mdCell(source)} |`);
++      lines.push("| Status | Confirmed |");
++      lines.push(`| Flag | \`${flag.value}\` |`);
++      lines.push("");
++      lines.push(
++        `**Description:** ${flag.note || "Flag identified during assisted analysis."}`
++      );
++      lines.push("");
++      lines.push("**Evidence / Steps to Reproduce:**");
++      lines.push("");
++      lines.push(`1. Open ${source}.`);
++      lines.push(
++        "2. Perform the actions recorded in Appendix A (Agent Action Trace)."
++      );
++      lines.push(`3. Capture the flag value: \`${flag.value}\`.`);
++      lines.push("");
++      lines.push(
++        "**Impact:** Objective progress; demonstrates a validated challenge path. In a production system, the underlying exposure could enable unauthorized access or data disclosure."
++      );
++      lines.push("");
++      lines.push(
++        "**Remediation:** Remediate the underlying issue in the affected component and rotate any exposed secrets. For CTF purposes, retain the flag as evidence."
++      );
++      lines.push("");
++    });
++  }
++
++  lines.push("## 4. Flag Capture");
++  lines.push("");
++  if (!flags.length) {
++    lines.push("_No flags captured during this session._");
++  } else {
++    lines.push("| Flag | Source | Method / Note | Captured (UTC) |");
++    lines.push("| --- | --- | --- | --- |");
 +    for (const flag of flags) {
 +      lines.push(
-+        `| \`${flag.value}\` | ${flag.url || "-"} | ${flag.note || "-"} |`
++        `| \`${flag.value}\` | ${mdCell(flag.url || target)} | ${mdCell(flag.note || "-")} | ${timestamp(flag.ts)} |`
 +      );
 +    }
 +  }
 +  lines.push("");
-+  lines.push("## Captured Requests");
++
++  lines.push("## 5. Approach & Methodology");
 +  lines.push("");
-+  if (!traffic.length) {
-+    lines.push("_No requests captured during this session._");
++  lines.push("### 5.1 Objective & Scope");
++  lines.push("");
++  lines.push(`- **Target:** ${target}`);
++  lines.push(`- **Objective:** ${objective}`);
++  lines.push(
++    "- **Authorization:** CTF competition or explicitly authorized assessment."
++  );
++  lines.push("- **Constraints:** Stay within the defined target and scope.");
++  lines.push("");
++  lines.push("### 5.2 Reconnaissance");
++  lines.push("");
++  lines.push(
++    `The assessment began on ${mdCell(tab.title || target)}. The active page was read through the NullSec actor and the visible text and interactive controls were used to plan the next actions.`
++  );
++  lines.push("");
++  lines.push("### 5.3 Enumeration & Actions");
++  lines.push("");
++  if (!steps.length) {
++    lines.push("_No agent actions were recorded for this session._");
 +  } else {
-+    lines.push("| Method | URL | Status | Type |");
-+    lines.push("| --- | --- | --- | --- |");
-+    for (const entry of traffic.slice(-100)) {
++    for (const step of steps.slice(0, 40)) {
++      const action = describeAction(step.action || { type: "read" });
++      const thought = step.thought ? ` — ${step.thought}` : "";
++      const url = step.url ? ` (${step.url})` : "";
++      lines.push(`- **Step ${step.n}:** ${action}${thought}${url}`);
++    }
++  }
++  lines.push("");
++  lines.push("### 5.4 Solution / Flag Retrieval");
++  lines.push("");
++  if (solved) {
++    lines.push("The flag was recovered from the following source(s):");
++    lines.push("");
++    for (const flag of flags) {
++      lines.push(`- \`${flag.value}\` — ${flag.url || target}`);
++    }
++    lines.push("");
++    lines.push(
++      "The action trace in Appendix A provides the reproducible sequence. Verify the flag against the platform, then confirm whether the same weakness exposes additional flags or assets."
++    );
++  } else {
++    lines.push(
++      "No successful exploitation sequence was recorded. Section 5.5 lists the highest-value approaches to try next."
++    );
++  }
++  lines.push("");
++  lines.push("### 5.5 Recommended Next Approaches");
++  lines.push("");
++  if (solved) {
++    lines.push(
++      "- Reproduce the successful path from a clean session to confirm reliability."
++    );
++    lines.push(
++      "- Check adjacent endpoints, roles, and objects for the same weakness."
++    );
++    lines.push(
++      "- Review the captured traffic for secrets, tokens, and unexpected redirects."
++    );
++    lines.push(
++      "- Document and remediate the root cause if this was a real engagement."
++    );
++  } else {
++    lines.push(
++      "- **Authentication and sessions:** inspect cookies, JWT claims, session fixation, weak reset flows, and auth bypasses."
++    );
++    lines.push(
++      "- **Authorization:** test IDOR, forced browsing, role tampering, and object-level access."
++    );
++    lines.push(
++      "- **Input handling:** probe SQLi, XSS, SSTI, command injection, and path traversal."
++    );
++    lines.push(
++      "- **Server-side:** test SSRF, file upload handling, XXE, deserialization, and open redirects."
++    );
++    lines.push(
++      "- **Client-side:** inspect JavaScript, source maps, DOM sinks, postMessage handlers, and exposed secrets."
++    );
++    lines.push(
++      "- **Discovery:** check robots.txt, sitemap.xml, API documentation, error pages, backups, and default files."
++    );
++    lines.push(
++      "- **Traffic replay:** modify captured requests, parameters, headers, and methods; compare responses."
++    );
++    lines.push(
++      "- **Business logic:** test workflow bypasses, race conditions, and state transitions."
++    );
++  }
++  lines.push("");
++
++  lines.push("## 6. Analysis");
++  lines.push("");
++  lines.push(
++    state.session.lastAnswer || "_No analysis was recorded for this session._"
++  );
++  lines.push("");
++
++  lines.push("## 7. Appendix A — Agent Action Trace");
++  lines.push("");
++  if (!steps.length) {
++    lines.push("_No agent actions were recorded._");
++  } else {
++    lines.push("| Step | Action | Thought | Result | URL |");
++    lines.push("| --- | --- | --- | --- | --- |");
++    for (const step of steps.slice(0, 60)) {
++      const action = describeAction(step.action || { type: "read" });
++      const result = step.result?.ok
++        ? "Success"
++        : step.result?.error || "Failed";
 +      lines.push(
-+        `| ${entry.method} | ${entry.url} | ${entry.status || "-"} | ${entry.type || "-"} |`
++        `| ${step.n} | ${mdCell(action)} | ${mdCell(step.thought || "-")} | ${mdCell(result)} | ${mdCell(step.url || "-")} |`
 +      );
 +    }
++  }
++  lines.push("");
++
++  lines.push("## 8. Appendix B — Captured HTTP Traffic");
++  lines.push("");
++  if (!traffic.length) {
++    lines.push("_No HTTP requests were captured during this session._");
++  } else {
++    lines.push("| # | Method | URL | Status | Type | Size |");
++    lines.push("| --- | --- | --- | --- | --- | --- |");
++    const entries = traffic.slice(-100);
++    entries.forEach((entry, index) => {
++      lines.push(
++        `| ${index + 1} | ${entry.method} | ${mdCell(entry.url)} | ${entry.status || "-"} | ${mdCell(entry.type || "-")} | ${formatBytes(entry.size) || "-"} |`
++      );
++    });
 +  }
 +  lines.push("");
 +  lines.push("---");
@@ -1823,7 +2172,7 @@ index 00000000..7ccb305e
 +}
 +
 +function generateReport() {
-+  dom.settings.hidden = true;
++  showSettings(false);
 +  const markdown = buildReportMarkdown();
 +  const wrapper = document.createElement("div");
 +  wrapper.className = "message is-assistant";
@@ -1930,6 +2279,8 @@ index 00000000..7ccb305e
 +  dom.contextTitle = $("ai-context-title");
 +  dom.contextUrl = $("ai-context-url");
 +  dom.settings = $("settings");
++  dom.settingsBack = $("settings-back");
++  dom.settingsClose = $("settings-close");
 +  dom.baseurl = $("ai-baseurl");
 +  dom.model = $("ai-model");
 +  dom.key = $("ai-key");
@@ -1955,7 +2306,13 @@ index 00000000..7ccb305e
 +    getBrowserWindow()?.SidebarController?.show("viewNullSecTrafficSidebar");
 +  });
 +  dom.settingsButton.addEventListener("click", () => {
-+    dom.settings.hidden = !dom.settings.hidden;
++    showSettings(dom.settings.hidden);
++  });
++  dom.settingsBack.addEventListener("click", () => {
++    showSettings(false);
++  });
++  dom.settingsClose.addEventListener("click", () => {
++    getBrowserWindow()?.SidebarController?.hide();
 +  });
 +
 +  dom.provider.addEventListener("change", () => {
