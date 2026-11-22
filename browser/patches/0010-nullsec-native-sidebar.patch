@@ -428,10 +428,10 @@ index 00000000..f5f73c19
 \ No newline at end of file
 diff --git a/browser/components/nullsec/sidebar.css b/browser/components/nullsec/sidebar.css
 new file mode 100644
-index 00000000..c37e5b5b
+index 00000000..0f040650
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.css
-@@ -0,0 +1,352 @@
+@@ -0,0 +1,701 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -458,53 +458,606 @@ index 00000000..c37e5b5b
 +  flex-direction: row;
 +  gap: var(--space-xsmall);
 +  padding-inline: var(--space-large);
++  flex: 0 0 auto;
++  min-height: 44px;
 +}
 +
-+#header select {
-+  --caret-anchor: left;
-+  --caret-padding: var(--space-xsmall);
-+  --end-padding: 0px;
-+  --start-padding: calc(
-+    var(--caret-padding) + var(--background-image-width) + var(--space-xsmall)
-+  );
-+  background-color: var(--button-background-color-ghost);
-+  background-position-x: var(--caret-anchor) var(--caret-padding);
-+  color: var(--button-text-color-ghost);
++#header-title {
 +  flex: 1;
-+  height: var(--button-size-icon);
-+  margin-block: var(--space-xsmall);
++  font-size: 14px;
++  font-weight: var(--font-weight-semibold);
 +  min-width: 0;
-+  overflow: hidden;
-+  text-overflow: ellipsis;
-+}
-+
-+#header select:hover {
-+  background-color: var(--button-background-color-ghost-hover);
-+  color: var(--button-text-color-ghost-hover);
-+}
-+
-+#header select:dir(rtl) {
-+  --caret-anchor: right;
-+}
-+
-+#context {
-+  border-bottom: 1px solid var(--border-color-deemphasized);
-+  color: var(--text-color-deemphasized);
-+  font-size: 12px;
-+  padding: var(--space-small) var(--space-large);
-+}
-+
-+#ai-context-title,
-+#ai-context-url {
-+  display: block;
 +  overflow: hidden;
 +  text-overflow: ellipsis;
 +  white-space: nowrap;
 +}
 +
-+#ai-context-title {
++#thread-wrap {
++  display: flex;
++  flex: 1;
++  min-height: 0;
++  position: relative;
++}
++
++#thread-viewport {
++  display: flex;
++  flex: 1;
++  flex-direction: column;
++  min-height: 0;
++  overflow-y: auto;
++  padding: var(--space-medium) var(--space-large) 0;
++}
++
++#chat-messages {
++  display: flex;
++  flex-direction: column;
++  gap: var(--space-large);
++  margin: 0 auto;
++  max-width: 100%;
++  width: 100%;
++}
++
++#chat-welcome {
++  display: flex;
++  flex-direction: column;
++  gap: var(--space-small);
++  margin: auto;
++  padding: var(--space-large) 0;
++  text-align: center;
++  width: 100%;
++}
++
++#chat-welcome[hidden] {
++  display: none;
++}
++
++.welcome-title {
++  color: var(--text-color);
++  font-size: 20px;
++  font-weight: 500;
++  margin: 0;
++  letter-spacing: -0.01em;
++}
++
++.welcome-sub {
++  color: var(--text-color-deemphasized);
++  font-size: 13px;
++  margin: 0;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++#suggestions {
++  display: flex;
++  flex-direction: column;
++  gap: var(--space-small);
++  margin-block-start: var(--space-small);
++}
++
++.suggestion-group {
++  display: flex;
++  flex-direction: column;
++  gap: var(--space-xsmall);
++}
++
++.suggestion-row {
++  display: flex;
++  flex-wrap: wrap;
++  gap: var(--space-xsmall);
++  justify-content: center;
++}
++
++.suggestion-row[hidden] {
++  display: none;
++}
++
++.suggestion-chip {
++  align-items: center;
++  background: transparent;
++  border: 1px solid var(--border-color-deemphasized);
++  border-radius: 999px;
++  color: var(--text-color);
++  cursor: pointer;
++  display: inline-flex;
++  font-size: 13px;
++  gap: 6px;
++  padding: 4px 12px;
++  transition: background-color 0.12s ease;
++}
++
++.suggestion-chip:hover,
++.suggestion-chip.is-active {
++  background-color: var(--button-background-color-ghost-hover);
++}
++
++.message {
++  display: flex;
++  flex-direction: column;
++  width: 100%;
++}
++
++.message.user {
++  align-items: flex-end;
++}
++
++.message .bubble {
++  background-color: var(--background-color-box);
++  border-radius: 12px;
++  color: var(--text-color);
++  max-width: 85%;
++  overflow-wrap: anywhere;
++  padding: 8px 14px;
++  white-space: pre-wrap;
++}
++
++.assistant-body {
++  color: var(--text-color);
++  line-height: 1.6;
++  overflow-wrap: anywhere;
++}
++
++.assistant-body > :first-child {
++  margin-block-start: 0;
++}
++
++.assistant-body > :last-child {
++  margin-block-end: 0;
++}
++
++.assistant-body p,
++.assistant-body ul,
++.assistant-body ol,
++.assistant-body pre,
++.assistant-body table {
++  margin-block: 0 var(--space-small);
++}
++
++.assistant-body h1,
++.assistant-body h2,
++.assistant-body h3,
++.assistant-body h4,
++.assistant-body h5,
++.assistant-body h6 {
++  font-size: 1em;
++  margin-block: var(--space-small);
++}
++
++.assistant-body ul,
++.assistant-body ol {
++  padding-inline-start: var(--space-large);
++}
++
++.assistant-body li {
++  margin-block-end: var(--space-xsmall);
++}
++
++.assistant-body a {
++  color: var(--link-color);
++}
++
++.assistant-body code {
++  background-color: var(--background-color-canvas);
++  border: 1px solid var(--border-color-deemphasized);
++  border-radius: var(--border-radius-small);
++  font-family: var(--monospace-font-family, monospace);
++  font-size: 0.92em;
++  padding: 0 3px;
++}
++
++.assistant-body pre {
++  background-color: var(--background-color-canvas);
++  border: 1px solid var(--border-color-deemphasized);
++  border-radius: var(--border-radius-small);
++  max-width: 100%;
++  overflow: auto;
++  padding: var(--space-small);
++}
++
++.assistant-body pre code {
++  background: none;
++  border: none;
++  padding: 0;
++}
++
++.assistant-body table {
++  border-collapse: collapse;
++  display: block;
++  max-width: 100%;
++  overflow-x: auto;
++}
++
++.assistant-body th,
++.assistant-body td {
++  border: 1px solid var(--border-color-deemphasized);
++  font-size: 12px;
++  padding: 4px 6px;
++  text-align: start;
++  vertical-align: top;
++}
++
++.assistant-body th {
++  background-color: var(--background-color-canvas);
++  font-weight: var(--font-weight-semibold);
++}
++
++.assistant-body hr {
++  border: none;
++  border-top: 1px solid var(--border-color-deemphasized);
++  margin-block: var(--space-small);
++}
++
++.assistant-status {
++  align-items: center;
++  color: var(--text-color-deemphasized);
++  display: inline-flex;
++  font-size: 13px;
++  gap: var(--space-small);
++}
++
++.assistant-status[hidden] {
++  display: none;
++}
++
++.dots {
++  display: inline-flex;
++  gap: 3px;
++}
++
++.dots i {
++  animation: dot-pulse 1.2s infinite ease-in-out;
++  background-color: currentColor;
++  border-radius: 50%;
++  height: 5px;
++  opacity: 0.3;
++  width: 5px;
++}
++
++.dots i:nth-child(2) {
++  animation-delay: 0.15s;
++}
++
++.dots i:nth-child(3) {
++  animation-delay: 0.3s;
++}
++
++@keyframes dot-pulse {
++  0%,
++  100% {
++    opacity: 0.25;
++    transform: translateY(0);
++  }
++  40% {
++    opacity: 1;
++    transform: translateY(-1px);
++  }
++}
++
++.cursor {
++  animation: blink 1s step-end infinite;
++  background-color: currentColor;
++  display: inline-block;
++  height: 1em;
++  margin-inline-start: 2px;
++  vertical-align: text-bottom;
++  width: 2px;
++}
++
++@keyframes blink {
++  50% {
++    opacity: 0;
++  }
++}
++
++.reasoning {
++  background-color: var(--background-color-canvas);
++  border: 1px solid var(--border-color-deemphasized);
++  border-radius: var(--border-radius-medium);
++  margin-block-end: var(--space-small);
++  overflow: hidden;
++}
++
++.reasoning > summary {
++  align-items: center;
++  color: var(--text-color-deemphasized);
++  cursor: pointer;
++  display: flex;
++  font-size: 12px;
++  gap: var(--space-small);
++  list-style: none;
++  padding: 6px 10px;
++}
++
++.reasoning > summary::-webkit-details-marker {
++  display: none;
++}
++
++.reasoning .chevron {
++  margin-inline-start: auto;
++  transform: rotate(-90deg);
++  transition: transform 0.15s ease;
++}
++
++.reasoning[open] .chevron {
++  transform: rotate(0deg);
++}
++
++.reasoning-body {
++  border-top: 1px solid var(--border-color-deemphasized);
++  display: flex;
++  flex-direction: column;
++  gap: 4px;
++  padding: 6px 10px 8px;
++}
++
++.reasoning-step {
++  color: var(--text-color-deemphasized);
++  font-size: 12px;
++  overflow-wrap: anywhere;
++}
++
++.reasoning-step strong {
 +  color: var(--text-color);
 +  font-weight: var(--font-weight-semibold);
++}
++
++.reasoning-thought {
++  color: var(--text-color-deemphasized);
++  font-size: 11px;
++  margin-block-start: 2px;
++}
++
++.assistant-actions {
++  align-items: center;
++  color: var(--text-color-deemphasized);
++  display: flex;
++  gap: 2px;
++  margin-block-start: var(--space-xsmall);
++  min-height: 24px;
++}
++
++.assistant-actions[hidden] {
++  display: none;
++}
++
++.action-button {
++  align-items: center;
++  background: transparent;
++  border: none;
++  border-radius: var(--border-radius-small);
++  color: inherit;
++  cursor: pointer;
++  display: inline-flex;
++  font-size: 12px;
++  gap: 4px;
++  padding: 2px 6px;
++}
++
++.action-button:hover {
++  background-color: var(--button-background-color-ghost-hover);
++  color: var(--text-color);
++}
++
++.timing {
++  font-size: 11px;
++  font-variant-numeric: tabular-nums;
++  margin-inline-start: auto;
++}
++
++.report-actions {
++  display: flex;
++  gap: var(--space-small);
++  margin-block-end: var(--space-small);
++}
++
++.scroll-bottom {
++  align-items: center;
++  background-color: var(--background-color-box);
++  border: 1px solid var(--border-color);
++  border-radius: 999px;
++  color: var(--text-color);
++  cursor: pointer;
++  display: flex;
++  height: 32px;
++  justify-content: center;
++  left: 50%;
++  position: absolute;
++  bottom: 10px;
++  transform: translateX(-50%);
++  width: 32px;
++  z-index: 5;
++}
++
++.scroll-bottom[hidden] {
++  display: none;
++}
++
++#composer {
++  background-color: var(--sidebar-background-color);
++  flex: 0 0 auto;
++  padding: var(--space-small) var(--space-large) var(--space-large);
++}
++
++#composer-shell {
++  background-color: var(--background-color-box);
++  border: 1px solid var(--border-color);
++  border-radius: 20px;
++  display: flex;
++  flex-direction: column;
++  gap: var(--space-small);
++  padding: 8px;
++}
++
++#composer-shell:focus-within {
++  border-color: var(--border-color-interactive, var(--border-color));
++}
++
++.composer-context {
++  align-items: center;
++  color: var(--text-color-deemphasized);
++  display: flex;
++  font-size: 12px;
++  gap: 6px;
++  overflow: hidden;
++  padding: 0 6px;
++}
++
++.composer-context[hidden] {
++  display: none;
++}
++
++.composer-context-text {
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++#chat-input {
++  background: transparent;
++  border: none;
++  box-sizing: border-box;
++  color: var(--text-color);
++  font: inherit;
++  font-size: 14px;
++  line-height: 1.5;
++  max-height: 192px;
++  min-height: 26px;
++  outline: none;
++  padding: 2px 6px;
++  resize: none;
++  width: 100%;
++}
++
++#composer-actions {
++  align-items: center;
++  display: flex;
++  flex-wrap: nowrap;
++  gap: var(--space-small);
++  justify-content: space-between;
++}
++
++.composer-group {
++  align-items: center;
++  display: flex;
++  gap: 6px;
++  min-width: 0;
++}
++
++.composer-group:last-child {
++  flex: 0 0 auto;
++}
++
++.icon {
++  -moz-context-properties: fill;
++  fill: currentColor;
++  height: 16px;
++  width: 16px;
++}
++
++.icon-12 {
++  height: 12px;
++  width: 12px;
++}
++
++.icon-button {
++  align-items: center;
++  background: transparent;
++  border: none;
++  border-radius: 999px;
++  color: var(--text-color-deemphasized);
++  cursor: pointer;
++  display: inline-flex;
++  flex: 0 0 28px;
++  height: 28px;
++  justify-content: center;
++  min-width: 28px;
++  width: 28px;
++}
++
++.icon-button:hover {
++  background-color: var(--button-background-color-ghost-hover);
++  color: var(--text-color);
++}
++
++.icon-button.is-active {
++  background-color: var(--button-background-color-ghost-hover);
++  color: var(--text-color);
++}
++
++.provider-pill {
++  -moz-context-properties: fill;
++  appearance: none;
++  background-color: transparent;
++  background-image: url("chrome://global/skin/icons/arrow-down.svg");
++  background-position: right 4px center;
++  background-repeat: no-repeat;
++  background-size: 12px;
++  border: none;
++  border-radius: 999px;
++  color: var(--text-color-deemphasized);
++  cursor: pointer;
++  fill: currentColor;
++  flex: 0 0 auto;
++  font-size: 13px;
++  height: 28px;
++  min-width: 84px;
++  max-width: 130px;
++  overflow: hidden;
++  padding: 0 22px 0 10px;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.provider-pill:hover {
++  background-color: var(--button-background-color-ghost-hover);
++  color: var(--text-color);
++}
++
++.ghost-button {
++  background: transparent;
++  border: none;
++  border-radius: 999px;
++  color: var(--text-color-deemphasized);
++  cursor: pointer;
++  font-size: 13px;
++  padding: 4px 10px;
++}
++
++.ghost-button:hover {
++  background-color: var(--button-background-color-ghost-hover);
++  color: var(--text-color);
++}
++
++.send-button {
++  align-items: center;
++  background-color: var(--button-background-color-primary, AccentColor);
++  border: none;
++  border-radius: 999px;
++  color: var(--button-text-color-primary, AccentColorText);
++  cursor: pointer;
++  display: inline-flex;
++  flex: 0 0 28px;
++  height: 28px;
++  justify-content: center;
++  min-width: 28px;
++  width: 28px;
++}
++
++.send-button:disabled {
++  cursor: default;
++  opacity: 0.5;
++}
++
++.send-button[hidden] {
++  display: none;
++}
++
++.stop-square {
++  background-color: currentColor;
++  border-radius: 2px;
++  display: block;
++  height: 10px;
++  width: 10px;
 +}
 +
 +#settings {
@@ -580,216 +1133,12 @@ index 00000000..c37e5b5b
 +  font-size: 12px;
 +  margin-inline-start: auto;
 +}
-+
-+#message-container {
-+  display: flex;
-+  flex: 1;
-+  flex-direction: column;
-+  min-height: 0;
-+  overflow-y: auto;
-+  padding: var(--space-small) var(--space-large);
-+}
-+
-+#chat-messages {
-+  display: flex;
-+  flex-direction: column;
-+  gap: var(--space-small);
-+}
-+
-+#chat-empty {
-+  color: var(--text-color-deemphasized);
-+  margin: auto;
-+  max-width: 320px;
-+  padding: var(--space-large) 0;
-+  text-align: center;
-+}
-+
-+#chat-empty[hidden] {
-+  display: none;
-+}
-+
-+.empty-title {
-+  color: var(--text-color);
-+  font-size: 15px;
-+  font-weight: var(--font-weight-semibold);
-+  margin-block-end: var(--space-xsmall);
-+}
-+
-+.empty-sub {
-+  font-size: 13px;
-+  line-height: 1.5;
-+}
-+
-+.message {
-+  background-color: var(--background-color-box);
-+  border: 1px solid var(--border-color-deemphasized);
-+  border-radius: var(--border-radius-medium);
-+  padding: var(--space-small);
-+}
-+
-+.message-role {
-+  color: var(--text-color-deemphasized);
-+  font-size: 11px;
-+  font-weight: var(--font-weight-semibold);
-+  margin-block-end: var(--space-xsmall);
-+  text-transform: uppercase;
-+}
-+
-+.message-body {
-+  line-height: 1.5;
-+  overflow-wrap: anywhere;
-+}
-+
-+.message-body > :first-child {
-+  margin-block-start: 0;
-+}
-+
-+.message-body > :last-child {
-+  margin-block-end: 0;
-+}
-+
-+.message-body p,
-+.message-body ul,
-+.message-body ol,
-+.message-body pre,
-+.message-body table {
-+  margin-block: 0 var(--space-small);
-+}
-+
-+.message-body h1,
-+.message-body h2,
-+.message-body h3,
-+.message-body h4,
-+.message-body h5,
-+.message-body h6 {
-+  font-size: 1em;
-+  margin-block: var(--space-small);
-+}
-+
-+.message-body ul,
-+.message-body ol {
-+  padding-inline-start: var(--space-large);
-+}
-+
-+.message-body li {
-+  margin-block-end: var(--space-xsmall);
-+}
-+
-+.message-body a {
-+  color: var(--link-color);
-+}
-+
-+.message-body code {
-+  background-color: var(--background-color-canvas);
-+  border: 1px solid var(--border-color-deemphasized);
-+  border-radius: var(--border-radius-small);
-+  font-family: var(--monospace-font-family, monospace);
-+  font-size: 0.92em;
-+  padding: 0 3px;
-+}
-+
-+.message-body pre {
-+  background-color: var(--background-color-canvas);
-+  border: 1px solid var(--border-color-deemphasized);
-+  border-radius: var(--border-radius-small);
-+  max-width: 100%;
-+  overflow: auto;
-+  padding: var(--space-small);
-+}
-+
-+.message-body pre code {
-+  background: none;
-+  border: none;
-+  padding: 0;
-+}
-+
-+.message-body table {
-+  border-collapse: collapse;
-+  display: block;
-+  max-width: 100%;
-+  overflow-x: auto;
-+}
-+
-+.message-body th,
-+.message-body td {
-+  border: 1px solid var(--border-color-deemphasized);
-+  font-size: 12px;
-+  padding: 4px 6px;
-+  text-align: start;
-+  vertical-align: top;
-+}
-+
-+.message-body th {
-+  background-color: var(--background-color-canvas);
-+  font-weight: var(--font-weight-semibold);
-+}
-+
-+.message-body hr {
-+  border: none;
-+  border-top: 1px solid var(--border-color-deemphasized);
-+  margin-block: var(--space-small);
-+}
-+
-+.step {
-+  border-inline-start: 2px solid var(--border-color-deemphasized);
-+  color: var(--text-color-deemphasized);
-+  font-size: 12px;
-+  padding: 2px var(--space-small);
-+}
-+
-+.report-actions {
-+  display: flex;
-+  gap: var(--space-small);
-+  margin-block-start: var(--space-small);
-+}
-+
-+#composer {
-+  background-color: var(--sidebar-background-color);
-+  border-top: 1px solid var(--border-color);
-+  display: flex;
-+  flex-direction: column;
-+  gap: var(--space-small);
-+  padding: var(--space-small) var(--space-large) var(--space-large);
-+}
-+
-+#chat-input {
-+  background-color: var(--background-color-box);
-+  border: 1px solid var(--border-color);
-+  border-radius: var(--border-radius-small);
-+  box-sizing: border-box;
-+  color: var(--text-color);
-+  font: inherit;
-+  max-height: 140px;
-+  min-height: 40px;
-+  padding: var(--space-small);
-+  resize: none;
-+  width: 100%;
-+}
-+
-+#chat-input:focus-visible {
-+  outline: var(--focus-outline);
-+  outline-offset: var(--focus-outline-offset);
-+}
-+
-+#composer-actions {
-+  align-items: center;
-+  display: flex;
-+  gap: var(--space-small);
-+}
-+
-+.spacer {
-+  flex: 1;
-+}
-+
-+moz-button[hidden] {
-+  display: none;
-+}
 diff --git a/browser/components/nullsec/sidebar.html b/browser/components/nullsec/sidebar.html
 new file mode 100644
-index 00000000..5e0eb9e6
+index 00000000..f7586c63
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.html
-@@ -0,0 +1,191 @@
+@@ -0,0 +1,251 @@
 +<!-- This Source Code Form is subject to the terms of the Mozilla Public
 +   - License, v. 2.0. If a copy of the MPL was not distributed with this
 +   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
@@ -848,11 +1197,7 @@ index 00000000..5e0eb9e6
 +  </head>
 +  <body>
 +    <div id="header">
-+      <select id="header-provider" aria-label="AI provider">
-+        <option value="openai">OpenAI</option>
-+        <option value="anthropic">Anthropic</option>
-+        <option value="compatible">OpenAI-compatible</option>
-+      </select>
++      <span id="header-title">NullSec</span>
 +      <moz-button
 +        id="header-traffic"
 +        type="icon ghost"
@@ -876,9 +1221,98 @@ index 00000000..5e0eb9e6
 +      ></moz-button>
 +    </div>
 +
-+    <div id="context">
-+      <span id="ai-context-title">No active tab</span>
-+      <span id="ai-context-url"></span>
++    <div id="thread-wrap">
++      <div id="thread-viewport">
++        <div id="chat-welcome">
++          <h1 class="welcome-title">How can I help you today?</h1>
++          <p class="welcome-sub" id="welcome-sub"></p>
++          <div id="suggestions"></div>
++        </div>
++        <div id="chat-messages"></div>
++      </div>
++      <button
++        id="scroll-bottom"
++        class="scroll-bottom"
++        type="button"
++        hidden
++        aria-label="Scroll to bottom"
++      >
++        <img
++          class="icon icon-12"
++          src="chrome://global/skin/icons/arrow-down.svg"
++          alt=""
++        />
++      </button>
++    </div>
++
++    <div id="composer">
++      <div id="composer-shell">
++        <div id="composer-context" class="composer-context" hidden>
++          <img
++            class="icon icon-12"
++            src="chrome://global/skin/icons/link.svg"
++            alt=""
++          />
++          <span id="composer-context-text" class="composer-context-text"></span>
++        </div>
++        <textarea
++          id="chat-input"
++          rows="1"
++          placeholder="Send a message..."
++        ></textarea>
++        <div id="composer-actions">
++          <div class="composer-group">
++            <button
++              id="composer-page"
++              class="icon-button"
++              type="button"
++              title="Include page content"
++              aria-label="Include page content"
++            >
++              <img
++                class="icon"
++                src="chrome://global/skin/icons/link.svg"
++                alt=""
++              />
++            </button>
++            <select
++              id="composer-provider"
++              class="provider-pill"
++              aria-label="AI provider"
++            >
++              <option value="openai">OpenAI</option>
++              <option value="anthropic">Anthropic</option>
++              <option value="compatible">Compatible</option>
++            </select>
++          </div>
++          <div class="composer-group">
++            <button id="chip-report" class="ghost-button" type="button">
++              Report
++            </button>
++            <button
++              id="chat-stop"
++              class="send-button is-stop"
++              type="button"
++              hidden
++              aria-label="Stop"
++            >
++              <span class="stop-square"></span>
++            </button>
++            <button
++              id="chat-send"
++              class="send-button"
++              type="button"
++              aria-label="Send"
++            >
++              <img
++                class="icon"
++                src="chrome://global/skin/icons/arrow-up.svg"
++                alt=""
++              />
++            </button>
++          </div>
++        </div>
++      </div>
 +    </div>
 +
 +    <section id="settings" hidden>
@@ -954,39 +1388,14 @@ index 00000000..5e0eb9e6
 +        <span id="ai-status" class="settings-status"></span>
 +      </div>
 +    </section>
-+
-+    <div id="message-container">
-+      <div id="chat-empty">
-+        <div class="empty-title">NullSec AI</div>
-+        <div class="empty-sub">
-+          Authorized CTF copilot. Ask about this page, or enable Autopilot to
-+          let NullSec operate the browser.
-+        </div>
-+      </div>
-+      <div id="chat-messages"></div>
-+    </div>
-+
-+    <div id="composer">
-+      <textarea
-+        id="chat-input"
-+        rows="2"
-+        placeholder="Ask NullSec about this page..."
-+      ></textarea>
-+      <div id="composer-actions">
-+        <moz-button id="chip-report" type="ghost">Flag report</moz-button>
-+        <span class="spacer"></span>
-+        <moz-button id="chat-stop" type="ghost" hidden>Stop</moz-button>
-+        <moz-button id="chat-send" type="primary">Send</moz-button>
-+      </div>
-+    </div>
 +  </body>
 +</html>
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..68312f7a
+index 00000000..0e24e9dd
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
-@@ -0,0 +1,1411 @@
+@@ -0,0 +1,1784 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -1047,6 +1456,88 @@ index 00000000..68312f7a
 +
 +const FLAG_PATTERN =
 +  /\b(?:flag|HTB|picoCTF|PCTF|DUCTF|THM|NCL|idek|corctf|uiuctf|buckeye|irisctf|grey|hxp|justCTF|maple|amuctf|angstromCTF|bcactf|csaw|dice|downunderctf|easyctf|flare|gctf|hitcon|inctf|kctf|litctf|m0lecon|nitectf|openctf|pbctf|rgbctf|sekaictf|tamuctf|utctf|vsctf|wmctf|zer0pts)\{[^}\n]{1,200}\}/gi;
++
++const SUGGESTION_GROUPS = [
++  {
++    label: "Recon",
++    icon: "chrome://global/skin/icons/lightbulb.svg",
++    options: [
++      {
++        label: "Analyze this page",
++        prompt:
++          "Analyze the current page. Summarize the attack surface, interesting parameters, forms, and likely entry points.",
++      },
++      {
++        label: "Enumerate endpoints",
++        prompt:
++          "Enumerate reachable endpoints, controls, and parameters on this target and suggest what to test next.",
++      },
++      {
++        label: "Inspect auth",
++        prompt:
++          "Inspect authentication, cookies, tokens, and session handling on this page and look for weaknesses.",
++      },
++    ],
++  },
++  {
++    label: "Exploit",
++    icon: "chrome://global/skin/icons/developer.svg",
++    options: [
++      {
++        label: "Find the flag",
++        prompt:
++          "Find the flag. Work through the challenge methodically, record any flag you discover, and explain the solution path.",
++      },
++      {
++        label: "Test IDOR/SSRF/SQLi",
++        prompt:
++          "Look for IDOR, SSRF, and SQL injection opportunities on this target and test the most promising ones.",
++      },
++      {
++        label: "Bypass auth",
++        prompt:
++          "Look for authentication or authorization bypasses and try the most promising approaches.",
++      },
++    ],
++  },
++  {
++    label: "Traffic",
++    icon: "chrome://global/skin/icons/link.svg",
++    options: [
++      {
++        label: "Explain captured traffic",
++        prompt:
++          "Explain the captured HTTP traffic and highlight anything suspicious, sensitive, or useful.",
++      },
++      {
++        label: "Replay and modify",
++        prompt:
++          "Pick interesting captured requests and suggest concrete modifications to test.",
++      },
++      {
++        label: "Find secrets",
++        prompt:
++          "Review captured responses for secrets, tokens, credentials, and sensitive data.",
++      },
++    ],
++  },
++  {
++    label: "Report",
++    icon: "chrome://global/skin/icons/more.svg",
++    options: [
++      {
++        label: "Summarize findings",
++        prompt:
++          "Summarize the findings, evidence, and recommended next steps in a professional format.",
++      },
++      {
++        label: "Draft report",
++        prompt:
++          "Draft a professional engagement report for the work done so far, including approach and remediation.",
++      },
++    ],
++  },
++];
 +
 +const state = {
 +  messages: [],
@@ -1383,19 +1874,41 @@ index 00000000..68312f7a
 +
 +function updateContext() {
 +  const tab = getActiveTabInfo();
-+  if (!dom.contextTitle) {
++  if (!dom.contextText) {
 +    return;
 +  }
 +  if (!tab.url) {
-+    dom.contextTitle.textContent = "No active tab";
-+    dom.contextUrl.textContent = "";
-+    dom.contextUrl.title = "";
++    dom.contextText.textContent = "";
++    dom.composerContext.hidden = true;
++    dom.welcomeSub.textContent =
++      "Ask about the active page or describe your objective.";
 +    return;
 +  }
-+  dom.contextTitle.textContent = tab.title || tab.url;
-+  dom.contextTitle.title = tab.title || tab.url;
-+  dom.contextUrl.textContent = tab.url;
-+  dom.contextUrl.title = tab.url;
++  let host = tab.url;
++  try {
++    host = new URL(tab.url).host;
++  } catch {}
++  const label = tab.title ? `${tab.title} · ${host}` : host;
++  dom.contextText.textContent = label;
++  dom.contextText.title = `${tab.title}\n${tab.url}`;
++  dom.composerContext.hidden = !getBoolPref(PREF.pageContext, true);
++  dom.welcomeSub.textContent = label;
++}
++
++function updatePageToggle() {
++  const enabled = getBoolPref(PREF.pageContext, true);
++  dom.composerPage.classList.toggle("is-active", enabled);
++  dom.composerPage.title = enabled
++    ? "Page content included"
++    : "Page content excluded";
++}
++
++function togglePageContext() {
++  const value = !getBoolPref(PREF.pageContext, true);
++  Services.prefs.setBoolPref(PREF.pageContext, value);
++  dom.pageContext.pressed = value;
++  updatePageToggle();
++  updateContext();
 +}
 +
 +function showSettings(visible) {
@@ -1404,32 +1917,263 @@ index 00000000..68312f7a
 +
 +function setStreaming(value) {
 +  state.streaming = value;
-+  dom.send.disabled = value;
++  dom.send.hidden = value;
 +  dom.stop.hidden = !value;
++  dom.send.disabled = value;
 +}
 +
 +function scrollChat() {
 +  dom.messageContainer.scrollTop = dom.messageContainer.scrollHeight;
++  updateScrollButton();
 +}
 +
-+function addMessageElement(message, streaming = false) {
++function updateScrollButton() {
++  const el = dom.messageContainer;
++  if (!el) {
++    return;
++  }
++  const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
++  dom.scrollBottom.hidden = distance < 48;
++}
++
++function formatTiming(ms) {
++  return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(2)}s`;
++}
++
++function dotsElement() {
++  const dots = document.createElement("span");
++  dots.className = "dots";
++  dots.innerHTML = "<i></i><i></i><i></i>";
++  return dots;
++}
++
++function createAssistantView({ withReasoning = false } = {}) {
 +  dom.empty.hidden = true;
 +  const wrapper = document.createElement("div");
-+  wrapper.className = `message is-${message.role}`;
-+  const role = document.createElement("div");
-+  role.className = "message-role";
-+  role.textContent = message.role === "user" ? "You" : "NullSec";
-+  const body = document.createElement("div");
-+  body.className = "message-body";
-+  if (message.role === "assistant" && !streaming) {
-+    body.innerHTML = renderMarkdown(message.content);
-+  } else {
-+    body.textContent = message.content;
++  wrapper.className = "message assistant";
++
++  let reasoning = null;
++  let reasoningBody = null;
++  let reasoningLabel = null;
++  if (withReasoning) {
++    reasoning = document.createElement("details");
++    reasoning.className = "reasoning";
++    reasoning.open = true;
++    const summary = document.createElement("summary");
++    reasoningLabel = document.createElement("span");
++    reasoningLabel.className = "reasoning-label";
++    reasoningLabel.textContent = "Working";
++    const chevron = document.createElement("img");
++    chevron.className = "icon icon-12 chevron";
++    chevron.src = "chrome://global/skin/icons/arrow-down.svg";
++    chevron.alt = "";
++    summary.append(dotsElement(), reasoningLabel, chevron);
++    reasoningBody = document.createElement("div");
++    reasoningBody.className = "reasoning-body";
++    reasoning.append(summary, reasoningBody);
++    wrapper.appendChild(reasoning);
 +  }
-+  wrapper.append(role, body);
++
++  const status = document.createElement("div");
++  status.className = "assistant-status";
++  const statusText = document.createElement("span");
++  statusText.className = "status-text";
++  statusText.textContent = "Connecting";
++  status.append(dotsElement(), statusText);
++
++  const body = document.createElement("div");
++  body.className = "assistant-body";
++  wrapper.append(status, body);
 +  dom.messages.appendChild(wrapper);
 +  scrollChat();
-+  return body;
++
++  return {
++    wrapper,
++    body,
++    status,
++    statusText,
++    reasoning,
++    reasoningBody,
++    reasoningLabel,
++    timing: "",
++  };
++}
++
++function addUserMessage(text) {
++  dom.empty.hidden = true;
++  const wrapper = document.createElement("div");
++  wrapper.className = "message user";
++  const bubble = document.createElement("div");
++  bubble.className = "bubble";
++  bubble.textContent = text;
++  wrapper.appendChild(bubble);
++  dom.messages.appendChild(wrapper);
++  scrollChat();
++}
++
++function setAssistantStatus(view, text) {
++  if (!view.status) {
++    return;
++  }
++  if (text === null) {
++    view.status.hidden = true;
++    return;
++  }
++  view.status.hidden = false;
++  view.statusText.textContent = text;
++}
++
++function appendReasoningStep(view, step) {
++  if (!view.reasoningBody) {
++    return;
++  }
++  const row = document.createElement("div");
++  row.className = "reasoning-step";
++  const strong = document.createElement("strong");
++  strong.textContent = `Step ${step.n}`;
++  const action = document.createElement("span");
++  action.textContent = ` · ${describeAction(step.action || { type: "read" })}`;
++  row.append(strong, action);
++  if (step.thought) {
++    const thought = document.createElement("div");
++    thought.className = "reasoning-thought";
++    thought.textContent = step.thought;
++    row.appendChild(thought);
++  }
++  view.reasoningBody.appendChild(row);
++  scrollChat();
++}
++
++function finalizeReasoning(view, elapsedMs, count, stopped = false) {
++  if (!view.reasoning) {
++    return;
++  }
++  view.reasoning.open = false;
++  const dots = view.reasoning.querySelector(".dots");
++  if (dots) {
++    const check = document.createElement("img");
++    check.className = "icon icon-12";
++    check.src = "chrome://global/skin/icons/check.svg";
++    check.alt = "";
++    dots.replaceWith(check);
++  }
++  if (view.reasoningLabel) {
++    view.reasoningLabel.textContent = stopped
++      ? "Stopped"
++      : `Thought for ${formatTiming(elapsedMs)} · ${count} step${count === 1 ? "" : "s"}`;
++  }
++}
++
++function actionButton(label, onClick) {
++  const button = document.createElement("button");
++  button.type = "button";
++  button.className = "action-button";
++  button.textContent = label;
++  button.addEventListener("click", onClick);
++  return button;
++}
++
++function attachAssistantActions(view, { text, allowRegenerate = true } = {}) {
++  if (view.actions) {
++    return;
++  }
++  const actions = document.createElement("div");
++  actions.className = "assistant-actions";
++  const copy = actionButton("Copy", () => {
++    copyText(text || view.body.innerText || "");
++    copy.textContent = "Copied";
++    setTimeout(() => (copy.textContent = "Copy"), 1200);
++  });
++  actions.appendChild(copy);
++  if (allowRegenerate) {
++    const retry = actionButton("Regenerate", () => {
++      const last = state.session.objectives.at(-1);
++      if (last) {
++        sendChat(last);
++      }
++    });
++    actions.appendChild(retry);
++  }
++  const exportButton = actionButton("Export", async () => {
++    try {
++      const path = PathUtils.join(
++        REPORT_DIR(),
++        `nullsec-message-${Date.now()}.md`
++      );
++      await IOUtils.makeDirectory(REPORT_DIR(), { ignoreExisting: true });
++      await IOUtils.writeUTF8(path, text || view.body.innerText || "");
++      exportButton.textContent = "Saved";
++      exportButton.title = path;
++      setTimeout(() => (exportButton.textContent = "Export"), 1500);
++    } catch {
++      exportButton.textContent = "Failed";
++    }
++  });
++  actions.appendChild(exportButton);
++  if (view.timing) {
++    const timing = document.createElement("span");
++    timing.className = "timing";
++    timing.textContent = view.timing;
++    actions.appendChild(timing);
++  }
++  view.wrapper.appendChild(actions);
++  view.actions = actions;
++  scrollChat();
++}
++
++function createSuggestionChip(label, icon, onClick) {
++  const button = document.createElement("button");
++  button.type = "button";
++  button.className = "suggestion-chip";
++  if (icon) {
++    const img = document.createElement("img");
++    img.className = "icon icon-12";
++    img.src = icon;
++    img.alt = "";
++    button.appendChild(img);
++  }
++  const text = document.createElement("span");
++  text.textContent = label;
++  button.appendChild(text);
++  if (onClick) {
++    button.addEventListener("click", onClick);
++  }
++  return button;
++}
++
++function renderSuggestions() {
++  if (!dom.suggestions) {
++    return;
++  }
++  dom.suggestions.replaceChildren();
++  for (const group of SUGGESTION_GROUPS) {
++    const wrap = document.createElement("div");
++    wrap.className = "suggestion-group";
++    const row = document.createElement("div");
++    row.className = "suggestion-row";
++    const options = document.createElement("div");
++    options.className = "suggestion-row";
++    options.hidden = true;
++    const groupChip = createSuggestionChip(group.label, group.icon, () => {
++      const open = !wrap.classList.contains("is-open");
++      wrap.classList.toggle("is-open", open);
++      groupChip.classList.toggle("is-active", open);
++      options.hidden = !open;
++    });
++    row.appendChild(groupChip);
++    for (const option of group.options) {
++      options.appendChild(
++        createSuggestionChip(option.label, null, () => sendChat(option.prompt))
++      );
++    }
++    wrap.append(row, options);
++    dom.suggestions.appendChild(wrap);
++  }
++}
++
++function autoGrowInput() {
++  dom.input.style.height = "auto";
++  dom.input.style.height = `${Math.min(dom.input.scrollHeight, 192)}px`;
 +}
 +
 +async function readSSE(response, onData) {
@@ -1567,12 +2311,17 @@ index 00000000..68312f7a
 +  }
 +
 +  state.messages.push({ role: "user", content: userContent });
-+  addMessageElement({ role: "user", content: trimmed });
++  addUserMessage(trimmed);
 +  dom.input.value = "";
++  autoGrowInput();
 +
 +  const assistant = { role: "assistant", content: "" };
 +  state.messages.push(assistant);
-+  const body = addMessageElement(assistant, true);
++  const view = createAssistantView();
++  const started = performance.now();
++  let firstToken = true;
++  const cursor = document.createElement("span");
++  cursor.className = "cursor";
 +
 +  state.abortController = new AbortController();
 +  setStreaming(true);
@@ -1585,7 +2334,14 @@ index 00000000..68312f7a
 +      signal: state.abortController.signal,
 +      onToken: token => {
 +        assistant.content += token;
-+        body.textContent = assistant.content;
++        if (firstToken) {
++          firstToken = false;
++          setAssistantStatus(view, null);
++        }
++        view.body.replaceChildren(
++          document.createTextNode(assistant.content),
++          cursor
++        );
 +        scrollChat();
 +      },
 +    };
@@ -1594,16 +2350,21 @@ index 00000000..68312f7a
 +    } else {
 +      await streamOpenAI(args);
 +    }
-+    body.innerHTML = renderMarkdown(assistant.content);
++    setAssistantStatus(view, null);
++    view.body.innerHTML = renderMarkdown(assistant.content);
++    view.timing = formatTiming(performance.now() - started);
 +    captureFlags(assistant.content, getActiveTabInfo().url);
++    attachAssistantActions(view, { text: assistant.content });
 +  } catch (error) {
++    setAssistantStatus(view, null);
 +    if (error.name === "AbortError") {
 +      assistant.content += "\n\n_[stopped]_";
-+      body.innerHTML = renderMarkdown(assistant.content);
 +    } else {
 +      assistant.content += `\n\n**Error:** ${error.message}`;
-+      body.innerHTML = renderMarkdown(assistant.content);
 +    }
++    view.body.innerHTML = renderMarkdown(assistant.content);
++    view.timing = formatTiming(performance.now() - started);
++    attachAssistantActions(view, { text: assistant.content });
 +  } finally {
 +    setStreaming(false);
 +    state.abortController = null;
@@ -1759,15 +2520,6 @@ index 00000000..68312f7a
 +  }
 +}
 +
-+function addStepElement(text) {
-+  dom.empty.hidden = true;
-+  const node = document.createElement("div");
-+  node.className = "step";
-+  node.textContent = text;
-+  dom.messages.appendChild(node);
-+  scrollChat();
-+}
-+
 +function captureFlags(text, url = "") {
 +  if (!text) {
 +    return;
@@ -1810,12 +2562,15 @@ index 00000000..68312f7a
 +  state.session.objectives.push(text.trim());
 +
 +  state.messages.push({ role: "user", content: text.trim() });
-+  addMessageElement({ role: "user", content: text.trim() });
++  addUserMessage(text.trim());
 +  dom.input.value = "";
++  autoGrowInput();
 +
 +  const assistant = { role: "assistant", content: "" };
-+  const body = addMessageElement(assistant, true);
-+  body.textContent = "Working...";
++  const view = createAssistantView({ withReasoning: true });
++  view.status.hidden = true;
++  const started = performance.now();
++  let recordedSteps = 0;
 +  state.abortController = new AbortController();
 +  const signal = state.abortController.signal;
 +  setStreaming(true);
@@ -1825,14 +2580,17 @@ index 00000000..68312f7a
 +    const history = state.messages.slice(-24);
 +    const initialPage = await collectPageContext();
 +    if (initialPage) {
-+      state.session.steps.push({
++      const step = {
 +        n: 0,
 +        thought: "Initial reconnaissance of the active page.",
 +        action: { type: "read" },
 +        result: { ok: true },
 +        url: initialPage.url,
 +        title: initialPage.title,
-+      });
++      };
++      state.session.steps.push(step);
++      appendReasoningStep(view, step);
++      recordedSteps++;
 +    }
 +    let observation = null;
 +    let finished = false;
@@ -1847,21 +2605,26 @@ index 00000000..68312f7a
 +        finished = true;
 +        break;
 +      }
-+      addStepElement(`Step ${step}: ${describeAction(parsed.action)}`);
-+      const result = await executeAction(parsed.action);
-+      await sleep(900);
-+      const page = await collectPageContext();
-+      if (page?.text) {
-+        captureFlags(page.text, page.url);
-+      }
-+      state.session.steps.push({
++      const stepRecord = {
 +        n: step,
 +        thought: parsed.thought || "",
 +        action: parsed.action,
-+        result,
-+        url: page?.url || "",
-+        title: page?.title || "",
-+      });
++        result: null,
++        url: "",
++        title: "",
++      };
++      appendReasoningStep(view, stepRecord);
++      const result = await executeAction(parsed.action);
++      await sleep(900);
++      const page = await collectPageContext();
++      stepRecord.result = result;
++      stepRecord.url = page?.url || "";
++      stepRecord.title = page?.title || "";
++      state.session.steps.push(stepRecord);
++      recordedSteps++;
++      if (page?.text) {
++        captureFlags(page.text, page.url);
++      }
 +      observation = [
 +        `[Observation after step ${step}]`,
 +        `Action: ${JSON.stringify(parsed.action)}`,
@@ -1878,15 +2641,28 @@ index 00000000..68312f7a
 +        : "_Stopped after reaching the step limit._";
 +    }
 +    captureFlags(assistant.content, getActiveTabInfo().url);
-+    body.innerHTML = renderMarkdown(assistant.content);
++    view.body.innerHTML = renderMarkdown(assistant.content);
++    view.timing = formatTiming(performance.now() - started);
++    finalizeReasoning(view, performance.now() - started, recordedSteps);
++    attachAssistantActions(view, { text: assistant.content });
 +  } catch (error) {
 +    if (error.name === "AbortError") {
 +      assistant.content = "_[stopped]_";
-+      body.innerHTML = renderMarkdown(assistant.content);
 +    } else {
 +      assistant.content = `**Error:** ${error.message}`;
-+      body.innerHTML = renderMarkdown(assistant.content);
 +    }
++    view.body.innerHTML = renderMarkdown(assistant.content);
++    view.timing = formatTiming(performance.now() - started);
++    finalizeReasoning(
++      view,
++      performance.now() - started,
++      recordedSteps,
++      true
++    );
++    attachAssistantActions(view, {
++      text: assistant.content,
++      allowRegenerate: false,
++    });
 +  } finally {
 +    state.messages.push(assistant);
 +    setStreaming(false);
@@ -2175,27 +2951,15 @@ index 00000000..68312f7a
 +  showSettings(false);
 +  const markdown = buildReportMarkdown();
 +  const wrapper = document.createElement("div");
-+  wrapper.className = "message is-assistant";
-+  const role = document.createElement("div");
-+  role.className = "message-role";
-+  role.textContent = "Flag report";
-+  const report = document.createElement("div");
-+  report.className = "message-body report";
-+  report.innerHTML = renderMarkdown(markdown);
++  wrapper.className = "message assistant";
 +  const actions = document.createElement("div");
 +  actions.className = "report-actions";
-+  const copy = document.createElement("moz-button");
-+  copy.setAttribute("type", "ghost");
-+  copy.textContent = "Copy";
-+  copy.addEventListener("click", () => {
++  const copy = actionButton("Copy", () => {
 +    copyText(markdown);
 +    copy.textContent = "Copied";
 +    setTimeout(() => (copy.textContent = "Copy"), 1500);
 +  });
-+  const save = document.createElement("moz-button");
-+  save.setAttribute("type", "ghost");
-+  save.textContent = "Save .md";
-+  save.addEventListener("click", async () => {
++  const save = actionButton("Save .md", async () => {
 +    try {
 +      const path = PathUtils.join(REPORT_DIR(), "nullsec-report.md");
 +      await IOUtils.makeDirectory(REPORT_DIR(), { ignoreExisting: true });
@@ -2209,7 +2973,10 @@ index 00000000..68312f7a
 +    }
 +  });
 +  actions.append(copy, save);
-+  wrapper.append(role, actions, report);
++  const report = document.createElement("div");
++  report.className = "assistant-body";
++  report.innerHTML = renderMarkdown(markdown);
++  wrapper.append(actions, report);
 +  dom.empty.hidden = true;
 +  dom.messages.appendChild(wrapper);
 +  scrollChat();
@@ -2238,6 +3005,8 @@ index 00000000..68312f7a
 +    : "Stored with OS encryption";
 +  dom.autopilot.pressed = getBoolPref(PREF.autopilot, false);
 +  dom.pageContext.pressed = getBoolPref(PREF.pageContext, true);
++  updatePageToggle();
++  updateContext();
 +}
 +
 +async function saveSettingsFromUI() {
@@ -2272,12 +3041,16 @@ index 00000000..68312f7a
 +}
 +
 +function initChrome() {
-+  dom.provider = $("header-provider");
++  dom.provider = $("composer-provider");
 +  dom.traffic = $("header-traffic");
 +  dom.settingsButton = $("header-settings");
 +  dom.close = $("header-close");
-+  dom.contextTitle = $("ai-context-title");
-+  dom.contextUrl = $("ai-context-url");
++  dom.contextText = $("composer-context-text");
++  dom.composerContext = $("composer-context");
++  dom.welcomeSub = $("welcome-sub");
++  dom.suggestions = $("suggestions");
++  dom.composerPage = $("composer-page");
++  dom.scrollBottom = $("scroll-bottom");
 +  dom.settings = $("settings");
 +  dom.settingsBack = $("settings-back");
 +  dom.settingsClose = $("settings-close");
@@ -2291,9 +3064,9 @@ index 00000000..68312f7a
 +  dom.status = $("ai-status");
 +  dom.save = $("ai-save");
 +  dom.clearKey = $("ai-clear-key");
-+  dom.messageContainer = $("message-container");
++  dom.messageContainer = $("thread-viewport");
 +  dom.messages = $("chat-messages");
-+  dom.empty = $("chat-empty");
++  dom.empty = $("chat-welcome");
 +  dom.input = $("chat-input");
 +  dom.send = $("chat-send");
 +  dom.stop = $("chat-stop");
@@ -2315,6 +3088,13 @@ index 00000000..68312f7a
 +    getBrowserWindow()?.SidebarController?.hide();
 +  });
 +
++  dom.composerPage.addEventListener("click", togglePageContext);
++  dom.scrollBottom.addEventListener("click", scrollChat);
++  dom.messageContainer.addEventListener("scroll", updateScrollButton);
++  dom.input.addEventListener("input", autoGrowInput);
++  renderSuggestions();
++  updatePageToggle();
++
 +  dom.provider.addEventListener("change", () => {
 +    const provider = dom.provider.value;
 +    Services.prefs.setStringPref(PREF.provider, provider);
@@ -2332,6 +3112,8 @@ index 00000000..68312f7a
 +  });
 +  dom.pageContext.addEventListener("toggle", () => {
 +    Services.prefs.setBoolPref(PREF.pageContext, dom.pageContext.pressed);
++    updatePageToggle();
++    updateContext();
 +  });
 +
 +  dom.send.addEventListener("click", () => sendChat(dom.input.value));
