@@ -2277,7 +2277,7 @@ index 00000000..256c8e55
 +</html>
 diff --git a/browser/components/nullsec/traffic.mjs b/browser/components/nullsec/traffic.mjs
 new file mode 100644
-index 00000000..2105d2f0
+index 00000000..becab2a3
 --- /dev/null
 +++ b/browser/components/nullsec/traffic.mjs
 @@ -0,0 +1,258 @@
@@ -2378,24 +2378,6 @@ index 00000000..2105d2f0
 +  meta.textContent = `${entry.status} ${entry.statusText || ""} - ${type}${size ? ` - ${size}` : ""}`;
 +  card.appendChild(meta);
 +
-+  const requestHeading = document.createElement("h4");
-+  requestHeading.textContent = "Request headers";
-+  const requestHeaders = document.createElement("pre");
-+  requestHeaders.textContent =
-+    Object.entries(entry.reqHeaders || {})
-+      .map(([name, value]) => `${name}: ${value}`)
-+      .join("\n") || "(none captured)";
-+  card.append(requestHeading, requestHeaders);
-+
-+  const responseHeading = document.createElement("h4");
-+  responseHeading.textContent = "Response headers";
-+  const responseHeaders = document.createElement("pre");
-+  responseHeaders.textContent =
-+    Object.entries(entry.headers || {})
-+      .map(([name, value]) => `${name}: ${value}`)
-+      .join("\n") || "(none captured)";
-+  card.append(responseHeading, responseHeaders);
-+
 +  const actions = document.createElement("div");
 +  actions.className = "actions";
 +
@@ -2420,6 +2402,24 @@ index 00000000..2105d2f0
 +
 +  actions.append(copy, close);
 +  card.appendChild(actions);
++
++  const requestHeading = document.createElement("h4");
++  requestHeading.textContent = "Request headers";
++  const requestHeaders = document.createElement("pre");
++  requestHeaders.textContent =
++    Object.entries(entry.reqHeaders || {})
++      .map(([name, value]) => `${name}: ${value}`)
++      .join("\n") || "(none captured)";
++  card.append(requestHeading, requestHeaders);
++
++  const responseHeading = document.createElement("h4");
++  responseHeading.textContent = "Response headers";
++  const responseHeaders = document.createElement("pre");
++  responseHeaders.textContent =
++    Object.entries(entry.headers || {})
++      .map(([name, value]) => `${name}: ${value}`)
++      .join("\n") || "(none captured)";
++  card.append(responseHeading, responseHeaders);
 +  dom.detail.appendChild(card);
 +  dom.detail.scrollIntoView({ block: "nearest" });
 +}
