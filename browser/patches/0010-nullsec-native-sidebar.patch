@@ -1678,10 +1678,10 @@ index 00000000..c9cd4b19
 +init();
 diff --git a/browser/components/nullsec/sidebar.css b/browser/components/nullsec/sidebar.css
 new file mode 100644
-index 00000000..15fc74b0
+index 00000000..1c4060fb
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.css
-@@ -0,0 +1,1763 @@
+@@ -0,0 +1,1783 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -1817,12 +1817,13 @@ index 00000000..15fc74b0
 +}
 +
 +#chat-welcome {
++  align-items: center;
 +  display: flex;
 +  flex-direction: column;
-+  gap: 8px;
++  gap: 10px;
 +  margin: auto;
-+  max-width: 44rem;
-+  padding: 16px;
++  max-width: 26rem;
++  padding: 24px 16px 40px;
 +  text-align: center;
 +  width: 100%;
 +}
@@ -1831,66 +1832,81 @@ index 00000000..15fc74b0
 +  display: none;
 +}
 +
++.welcome-logo {
++  height: 44px;
++  opacity: 0.95;
++  width: 44px;
++}
++
++.welcome-title {
++  color: var(--ns-fg);
++  font-size: 22px;
++  font-weight: 500;
++  letter-spacing: -0.02em;
++  margin: 4px 0 0;
++}
++
++.welcome-sub {
++  color: var(--ns-muted-fg);
++  font-size: 13.5px;
++  margin: 0;
++  max-width: 24rem;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: normal;
++}
++
 +.welcome-setup {
 +  align-items: center;
 +  display: flex;
 +  flex-direction: column;
-+  gap: var(--space-small);
++  gap: 10px;
++  margin-block-start: 10px;
 +}
 +
 +.welcome-setup[hidden] {
 +  display: none;
 +}
 +
-+.welcome-setup .welcome-sub {
-+  overflow: visible;
-+  text-align: center;
-+  white-space: normal;
-+}
-+
-+#welcome-ready[hidden] {
-+  display: none;
-+}
-+
-+.welcome-logo {
-+  height: 40px;
-+  margin-block-end: var(--space-xsmall);
-+  opacity: 0.9;
-+  width: 40px;
-+}
-+
 +.welcome-actions {
++  align-items: center;
 +  display: flex;
-+  gap: var(--space-small);
++  gap: 8px;
 +  justify-content: center;
-+  margin-block-start: var(--space-small);
 +}
 +
-+.welcome-steps {
-+  color: var(--ns-muted-fg);
-+  font-size: 12px;
-+  line-height: 1.7;
-+  margin: var(--space-small) auto 0;
-+  max-width: 320px;
-+  padding-inline-start: 18px;
-+  text-align: start;
-+}
-+
-+.welcome-title {
-+  color: var(--ns-fg);
-+  font-size: 24px;
-+  font-weight: 500;
-+  letter-spacing: -0.025em;
-+  margin: 0;
-+}
-+
-+.welcome-sub {
-+  color: var(--ns-muted-fg);
-+  font-size: 14px;
-+  margin: 0;
-+  overflow: hidden;
-+  text-overflow: ellipsis;
++.welcome-actions moz-button {
++  flex: 0 0 auto;
 +  white-space: nowrap;
++  width: auto;
++}
++
++.welcome-link {
++  background: none;
++  border: none;
++  color: var(--ns-muted-fg);
++  cursor: pointer;
++  font: inherit;
++  font-size: 12.5px;
++  padding: 0;
++  text-decoration: underline;
++  text-underline-offset: 2px;
++}
++
++.welcome-link:hover {
++  color: var(--ns-fg);
++}
++
++.welcome-actions moz-button {
++  flex: 0 0 auto;
++  white-space: nowrap;
++}
++
++.welcome-note {
++  color: var(--ns-muted-fg);
++  font-size: 11.5px;
++  margin: 0;
++  opacity: 0.8;
 +}
 +
 +#suggestions {
@@ -1898,6 +1914,10 @@ index 00000000..15fc74b0
 +  flex-direction: column;
 +  gap: var(--space-small);
 +  margin-block-start: var(--space-small);
++}
++
++#suggestions[hidden] {
++  display: none;
 +}
 +
 +.suggestion-group {
@@ -3448,10 +3468,10 @@ index 00000000..15fc74b0
 \ No newline at end of file
 diff --git a/browser/components/nullsec/sidebar.html b/browser/components/nullsec/sidebar.html
 new file mode 100644
-index 00000000..a41dc385
+index 00000000..a3e0c01b
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.html
-@@ -0,0 +1,411 @@
+@@ -0,0 +1,419 @@
 +<!-- This Source Code Form is subject to the terms of the Mozilla Public
 +   - License, v. 2.0. If a copy of the MPL was not distributed with this
 +   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
@@ -3557,36 +3577,29 @@ index 00000000..a41dc385
 +    <div id="thread-wrap">
 +      <div id="thread-viewport">
 +        <div id="chat-welcome">
++          <img
++            class="welcome-logo"
++            src="chrome://browser/content/nullsec/nullsec.svg"
++            alt=""
++          />
++          <h1 id="welcome-title" class="welcome-title">
++            How can I help you today?
++          </h1>
++          <p class="welcome-sub" id="welcome-sub"></p>
 +          <div id="welcome-setup" class="welcome-setup" hidden>
-+            <img
-+              class="welcome-logo"
-+              src="chrome://browser/content/nullsec/nullsec.svg"
-+              alt=""
-+            />
-+            <h1 class="welcome-title">Set up NullSec AI</h1>
-+            <p class="welcome-sub">
-+              Connect a model to analyze traffic, hunt vulnerabilities, and
-+              capture flags. Your key is stored locally with OS encryption.
-+            </p>
 +            <div class="welcome-actions">
 +              <moz-button id="welcome-setup-cta" type="primary"
-+                >Set up AI</moz-button
-+              >
-+              <moz-button id="welcome-traffic" type="ghost"
-+                >Open Traffic</moz-button
++                >Connect a provider</moz-button
 +              >
 +            </div>
-+            <ol class="welcome-steps">
-+              <li>Open the model menu and choose a provider.</li>
-+              <li>Connect your API key.</li>
-+              <li>Start a session from the prompt.</li>
-+            </ol>
++            <button id="welcome-traffic" class="welcome-link" type="button">
++              Open Traffic
++            </button>
++            <p class="welcome-note">
++              Your key stays on this device with OS encryption.
++            </p>
 +          </div>
-+          <div id="welcome-ready">
-+            <h1 class="welcome-title">How can I help you today?</h1>
-+            <p class="welcome-sub" id="welcome-sub"></p>
-+            <div id="suggestions"></div>
-+          </div>
++          <div id="suggestions" hidden></div>
 +        </div>
 +        <div id="chat-messages"></div>
 +      </div>
@@ -3750,13 +3763,28 @@ index 00000000..a41dc385
 +        <p id="connect-detail-desc" class="connect-desc"></p>
 +        <label id="connect-detail-label" class="connect-label" for="connect-detail-key">API key</label>
 +        <input id="connect-detail-key" class="connect-input" type="password" placeholder="API key" autocomplete="off" spellcheck="false" />
-+        <label id="connect-detail-url-label" class="connect-label" for="connect-detail-url" hidden>Base URL</label>
-+        <input id="connect-detail-url" class="connect-input" type="text" placeholder="https://api.provider.com/v1" autocomplete="off" spellcheck="false" hidden />
 +        <p id="connect-detail-error" class="connect-error" hidden></p>
 +      </div>
 +      <div class="overlay-footer">
 +        <button id="connect-detail-continue" class="primary-button" type="button">Continue</button>
 +      </div>
++    </section>
++
++    <section id="provider-models" class="overlay" hidden>
++      <div class="overlay-header">
++        <button id="provider-models-back" class="ns-icon-btn" type="button" title="Back" aria-label="Back">
++          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
++        </button>
++        <span id="provider-models-title" class="overlay-title">Select a model</span>
++        <button id="provider-models-close" class="ns-icon-btn" type="button" title="Close" aria-label="Close">
++          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
++        </button>
++      </div>
++      <div class="overlay-search">
++        <svg class="popover-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
++        <input id="provider-models-search" type="text" placeholder="Search models" autocomplete="off" spellcheck="false" />
++      </div>
++      <div id="provider-models-list" class="overlay-list"></div>
 +    </section>
 +
 +    <section id="custom-provider" class="overlay" hidden>
@@ -3865,10 +3893,10 @@ index 00000000..a41dc385
 +</html>
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..6f9d9701
+index 00000000..598966be
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
-@@ -0,0 +1,3047 @@
+@@ -0,0 +1,3216 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -4302,7 +4330,11 @@ index 00000000..6f9d9701
 +async function refreshKeys() {
 +  keyCache.clear();
 +  const store = keyStore();
-+  for (const provider of Object.keys(PROVIDER_DEFAULTS)) {
++  const ids = new Set([
++    ...Object.keys(PROVIDER_DEFAULTS),
++    ...NullSecModels.allProviders().map(provider => provider.id),
++  ]);
++  for (const provider of ids) {
 +    const encrypted = Services.prefs.getStringPref(
 +      KEY_PREF_PREFIX + provider,
 +      ""
@@ -4425,17 +4457,83 @@ index 00000000..6f9d9701
 +}
 +
 +function updateWelcome() {
-+  if (!dom.welcomeSetup || !dom.welcomeReady) {
++  if (!dom.welcomeSetup) {
 +    return;
 +  }
 +  const configured = isAiConfigured();
 +  dom.welcomeSetup.hidden = configured;
-+  dom.welcomeReady.hidden = !configured;
++  if (dom.welcomeTitle) {
++    dom.welcomeTitle.textContent = configured
++      ? "How can I help you today?"
++      : "Connect a model";
++  }
++  if (dom.suggestions) {
++    dom.suggestions.hidden = !configured;
++  }
++  if (!configured && dom.welcomeSub) {
++    dom.welcomeSub.textContent = "NullSec runs on your own API key.";
++  }
++  if (dom.empty) {
++    dom.empty.hidden = state.messages.length > 0;
++  }
++}
++
++const HISTORY_PREF = "browser.nullsec.ai.history";
++const HISTORY_LIMIT = 60;
++
++function saveHistory() {
++  const items = state.messages
++    .filter(message => message.role === "user" || message.role === "assistant")
++    .slice(-HISTORY_LIMIT)
++    .map(message => ({
++      role: message.role,
++      content: String(message.display || message.content || "").slice(0, 8000),
++    }))
++    .filter(message => message.content);
++  try {
++    Services.prefs.setStringPref(HISTORY_PREF, JSON.stringify(items));
++  } catch (error) {
++    console.error("NullSec: could not save history", error);
++  }
++}
++
++function restoreHistory() {
++  let items = [];
++  try {
++    items = JSON.parse(Services.prefs.getStringPref(HISTORY_PREF, "[]"));
++  } catch (error) {
++    items = [];
++  }
++  if (!Array.isArray(items)) {
++    return;
++  }
++  for (const item of items) {
++    const content = String(item?.content || "");
++    if (!content) {
++      continue;
++    }
++    if (item.role === "user") {
++      state.messages.push({ role: "user", content, display: content });
++      addUserMessage(content);
++    } else if (item.role === "assistant") {
++      state.messages.push({ role: "assistant", content });
++      const view = createAssistantView();
++      view.status.hidden = true;
++      view.body.innerHTML = renderMarkdown(content);
++      attachAssistantActions(view, { text: content });
++    }
++  }
++  state.session.lastAnswer =
++    [...items].reverse().find(item => item.role === "assistant")?.content || "";
++  if (state.messages.length && dom.empty) {
++    dom.empty.hidden = true;
++  }
++  scrollChat();
 +}
 +
 +function renderSetupCard(view) {
 +  view.body.innerHTML = renderMarkdown(
-+    "**Connect an AI provider to get started.**\n\nNullSec needs a model to analyze traffic, find vulnerabilities, and capture flags.\n\n1. Open the model menu and choose a provider\n2. Connect your API key\n3. Return here and start a session\n\nYour key is stored locally with OS encryption and is only ever sent to the provider you choose."
++    "**Connect a provider to start.**\n\nNullSec uses your own API key. It stays on this device with OS encryption and is only sent to the provider you choose."
 +  );
 +  const actions = document.createElement("div");
 +  actions.className = "assistant-actions";
@@ -4762,10 +4860,12 @@ index 00000000..6f9d9701
 +}
 +
 +let connectDetailProvider = null;
++let providerModelsProvider = null;
 +
 +function closeOverlays() {
 +  dom.connect.hidden = true;
 +  dom.connectDetail.hidden = true;
++  dom.providerModels.hidden = true;
 +  dom.custom.hidden = true;
 +  dom.manage.hidden = true;
 +}
@@ -4795,8 +4895,12 @@ index 00000000..6f9d9701
 +    }
 +  }
 +  renderModelPill();
-+  closeOverlays();
 +  updateWelcome();
++  if (provider.models.length) {
++    openProviderModels(providerId);
++  } else {
++    closeOverlays();
++  }
 +}
 +
 +function openConnectProvider() {
@@ -4804,6 +4908,7 @@ index 00000000..6f9d9701
 +  showSettings(false);
 +  dom.manage.hidden = true;
 +  dom.connectDetail.hidden = true;
++  dom.providerModels.hidden = true;
 +  dom.custom.hidden = true;
 +  dom.connect.hidden = false;
 +  dom.connectSearch.value = "";
@@ -4872,6 +4977,7 @@ index 00000000..6f9d9701
 +  connectDetailProvider = provider;
 +  dom.manage.hidden = true;
 +  dom.connect.hidden = true;
++  dom.providerModels.hidden = true;
 +  dom.custom.hidden = true;
 +  dom.connectDetail.hidden = false;
 +  dom.connectDetailTitle.textContent = `Connect ${provider.name}`;
@@ -4888,9 +4994,6 @@ index 00000000..6f9d9701
 +    ? "Connected — leave blank to refresh"
 +    : "API key";
 +  dom.connectDetailError.hidden = true;
-+  dom.connectDetailUrlLabel.hidden = false;
-+  dom.connectDetailUrl.hidden = false;
-+  dom.connectDetailUrl.value = provider.baseurl || "";
 +  dom.connectDetailKey.focus();
 +}
 +
@@ -4900,7 +5003,7 @@ index 00000000..6f9d9701
 +    return;
 +  }
 +  const key = dom.connectDetailKey.value.trim();
-+  const url = dom.connectDetailUrl.value.trim() || provider.baseurl || "";
++  const url = provider.baseurl || "";
 +  const existing = getKey(provider.id);
 +  const effectiveKey = key || existing;
 +  if (provider.needsKey && !effectiveKey) {
@@ -4909,7 +5012,7 @@ index 00000000..6f9d9701
 +    return;
 +  }
 +  if (!url) {
-+    dom.connectDetailError.textContent = "Enter a Base URL to continue.";
++    dom.connectDetailError.textContent = "This provider has no Base URL.";
 +    dom.connectDetailError.hidden = false;
 +    return;
 +  }
@@ -4951,6 +5054,79 @@ index 00000000..6f9d9701
 +  } finally {
 +    dom.connectDetailContinue.disabled = false;
 +    dom.connectDetailContinue.textContent = label;
++  }
++}
++
++function openProviderModels(providerId) {
++  const provider = NullSecModels.getProvider(providerId);
++  if (!provider) {
++    closeOverlays();
++    return;
++  }
++  providerModelsProvider = provider;
++  dom.manage.hidden = true;
++  dom.connect.hidden = true;
++  dom.connectDetail.hidden = true;
++  dom.custom.hidden = true;
++  dom.providerModels.hidden = false;
++  dom.providerModelsTitle.textContent = "Select a model";
++  dom.providerModelsSearch.value = "";
++  renderProviderModels("");
++  dom.providerModelsSearch.focus();
++}
++
++function renderProviderModels(filter = "") {
++  const provider = providerModelsProvider;
++  const list = dom.providerModelsList;
++  list.replaceChildren();
++  if (!provider) {
++    return;
++  }
++  const query = filter.trim().toLowerCase();
++  const current = currentModelId();
++  const models = (provider.models || []).filter(
++    model =>
++      !query ||
++      String(model.name || "")
++        .toLowerCase()
++        .includes(query) ||
++      String(model.id || "")
++        .toLowerCase()
++        .includes(query)
++  );
++  if (!models.length) {
++    const empty = document.createElement("div");
++    empty.className = "popover-empty";
++    empty.textContent = "No models found. Check the API key and try again.";
++    list.appendChild(empty);
++    return;
++  }
++  for (const model of models) {
++    const id = NullSecModels.makeId(provider.id, model.id);
++    const row = document.createElement("button");
++    row.type = "button";
++    row.className = "popover-row";
++    if (id === current) {
++      row.classList.add("is-selected");
++    }
++    const name = document.createElement("span");
++    name.className = "popover-row-name";
++    name.textContent = model.name || model.id;
++    row.appendChild(name);
++    if (model.name && model.id && model.name !== model.id) {
++      const tag = document.createElement("span");
++      tag.className = "popover-tag";
++      tag.textContent = model.id;
++      row.appendChild(tag);
++    }
++    row.appendChild(svgIcon("check", "ns-svg popover-row-check"));
++    row.addEventListener("click", () => {
++      selectModel(id);
++      closeOverlays();
++      updateWelcome();
++      dom.input.focus();
++    });
++    list.appendChild(row);
 +  }
 +}
 +
@@ -4999,6 +5175,7 @@ index 00000000..6f9d9701
 +function openCustomProvider() {
 +  dom.connect.hidden = true;
 +  dom.connectDetail.hidden = true;
++  dom.providerModels.hidden = true;
 +  dom.custom.hidden = false;
 +  dom.customId.value = "";
 +  dom.customName.value = "";
@@ -5098,11 +5275,14 @@ index 00000000..6f9d9701
 +  if (!dom.contextText) {
 +    return;
 +  }
++  const configured = isAiConfigured();
 +  if (!tab.url) {
 +    dom.contextText.textContent = "";
 +    dom.composerContext.hidden = true;
-+    dom.welcomeSub.textContent =
-+      "Ask about the active page or describe your objective.";
++    if (configured) {
++      dom.welcomeSub.textContent =
++        "Ask about the active page or describe your objective.";
++    }
 +    return;
 +  }
 +  let host = tab.url;
@@ -5113,7 +5293,9 @@ index 00000000..6f9d9701
 +  dom.contextText.textContent = label;
 +  dom.contextText.title = `${tab.title}\n${tab.url}`;
 +  dom.composerContext.hidden = !getBoolPref(PREF.pageContext, true);
-+  dom.welcomeSub.textContent = label;
++  if (configured) {
++    dom.welcomeSub.textContent = label;
++  }
 +}
 +
 +function updatePageToggle() {
@@ -5842,7 +6024,7 @@ index 00000000..6f9d9701
 +    console.error("NullSec: skill retrieval failed", error);
 +  }
 +
-+  state.messages.push({ role: "user", content: userContent });
++  state.messages.push({ role: "user", content: userContent, display: trimmed });
 +  addUserMessage(trimmed);
 +  dom.input.value = "";
 +  autoGrowInput();
@@ -5853,6 +6035,7 @@ index 00000000..6f9d9701
 +  startStatusRotation(view);
 +  const started = performance.now();
 +  let firstToken = true;
++  let lastRender = 0;
 +  const cursor = document.createElement("span");
 +  cursor.className = "cursor";
 +
@@ -5872,10 +6055,12 @@ index 00000000..6f9d9701
 +          stopStatusRotation(view);
 +          setAssistantStatus(view, null);
 +        }
-+        view.body.replaceChildren(
-+          document.createTextNode(assistant.content),
-+          cursor
-+        );
++        const now = performance.now();
++        if (now - lastRender > 50) {
++          lastRender = now;
++          view.body.innerHTML = renderMarkdown(assistant.content);
++          view.body.appendChild(cursor);
++        }
 +        scrollChat();
 +      },
 +    };
@@ -5911,6 +6096,7 @@ index 00000000..6f9d9701
 +    setStreaming(false);
 +    state.abortController = null;
 +    state.session.lastAnswer = assistant.content;
++    saveHistory();
 +    scrollChat();
 +  }
 +}
@@ -6169,7 +6355,7 @@ index 00000000..6f9d9701
 +  showSettings(false);
 +  state.session.objectives.push(text.trim());
 +
-+  state.messages.push({ role: "user", content: text.trim() });
++  state.messages.push({ role: "user", content: text.trim(), display: text.trim() });
 +  addUserMessage(text.trim());
 +  dom.input.value = "";
 +  autoGrowInput();
@@ -6322,6 +6508,7 @@ index 00000000..6f9d9701
 +    setStreaming(false);
 +    state.abortController = null;
 +    state.session.lastAnswer = assistant.content;
++    saveHistory();
 +    scheduleReport();
 +    scrollChat();
 +  }
@@ -6695,10 +6882,14 @@ index 00000000..6f9d9701
 +  dom.connectDetailDesc = $("connect-detail-desc");
 +  dom.connectDetailLabel = $("connect-detail-label");
 +  dom.connectDetailKey = $("connect-detail-key");
-+  dom.connectDetailUrlLabel = $("connect-detail-url-label");
-+  dom.connectDetailUrl = $("connect-detail-url");
 +  dom.connectDetailError = $("connect-detail-error");
 +  dom.connectDetailContinue = $("connect-detail-continue");
++  dom.providerModels = $("provider-models");
++  dom.providerModelsBack = $("provider-models-back");
++  dom.providerModelsTitle = $("provider-models-title");
++  dom.providerModelsClose = $("provider-models-close");
++  dom.providerModelsSearch = $("provider-models-search");
++  dom.providerModelsList = $("provider-models-list");
 +  dom.custom = $("custom-provider");
 +  dom.customBack = $("custom-back");
 +  dom.customClose = $("custom-close");
@@ -6738,7 +6929,7 @@ index 00000000..6f9d9701
 +  dom.stop = $("chat-stop");
 +  dom.report = $("header-reports");
 +  dom.welcomeSetup = $("welcome-setup");
-+  dom.welcomeReady = $("welcome-ready");
++  dom.welcomeTitle = $("welcome-title");
 +  dom.welcomeCta = $("welcome-setup-cta");
 +  dom.welcomeTraffic = $("welcome-traffic");
 +
@@ -6764,7 +6955,6 @@ index 00000000..6f9d9701
 +  dom.input.addEventListener("input", autoGrowInput);
 +  renderSuggestions();
 +  updatePageToggle();
-+  updateWelcome();
 +
 +  dom.modelPill.addEventListener("click", event => {
 +    event.stopPropagation();
@@ -6850,11 +7040,16 @@ index 00000000..6f9d9701
 +      connectDetailContinue();
 +    }
 +  });
-+  dom.connectDetailUrl.addEventListener("keydown", event => {
-+    if (event.key === "Enter") {
-+      event.preventDefault();
-+      connectDetailContinue();
++  dom.providerModelsBack.addEventListener("click", () => {
++    if (providerModelsProvider) {
++      openConnectDetail(providerModelsProvider.id);
++    } else {
++      openConnectProvider();
 +    }
++  });
++  dom.providerModelsClose.addEventListener("click", closeOverlays);
++  dom.providerModelsSearch.addEventListener("input", () => {
++    renderProviderModels(dom.providerModelsSearch.value);
 +  });
 +  dom.customBack.addEventListener("click", openConnectProvider);
 +  dom.customClose.addEventListener("click", closeOverlays);
@@ -6911,7 +7106,9 @@ index 00000000..6f9d9701
 +  } catch (error) {
 +    console.error("NullSec: key refresh failed", error);
 +  }
++  restoreHistory();
 +  loadSettingsIntoUI();
++  updateContext();
 +  updateWelcome();
 +}
 +
