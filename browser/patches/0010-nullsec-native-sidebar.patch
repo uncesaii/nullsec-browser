@@ -180,10 +180,10 @@ index 2b957018..dd2dee24 100644
      "PageInfoPreviewChild.sys.mjs",
      "PageStyleChild.sys.mjs",
 diff --git a/browser/app/profile/000-mullvad-browser.js b/browser/app/profile/000-mullvad-browser.js
-index 3636c5d0..d7560f17 100644
+index 3636c5d0..e973c768 100644
 --- a/browser/app/profile/000-mullvad-browser.js
 +++ b/browser/app/profile/000-mullvad-browser.js
-@@ -56,3 +56,22 @@ pref("browser.selectiveSavingMode.enabled", false);
+@@ -56,3 +56,21 @@ pref("browser.selectiveSavingMode.enabled", false);
  #else
  pref("browser.selectiveSavingMode.enabled", true);
  #endif
@@ -204,7 +204,6 @@ index 3636c5d0..d7560f17 100644
 +pref("browser.nullsec.ai.modelId", "openai/gpt-4o-mini");
 +pref("browser.nullsec.ai.disabled", "");
 +pref("browser.nullsec.ai.effort", "max");
-+pref("browser.nullsec.ai.mode", "build");
 +pref("browser.nullsec.ai.anonymous", true);
 diff --git a/browser/components/DesktopActorRegistry.sys.mjs b/browser/components/DesktopActorRegistry.sys.mjs
 index 7266cae6..83d9dd17 100644
@@ -1455,10 +1454,10 @@ index 00000000..c9cd4b19
 +init();
 diff --git a/browser/components/nullsec/sidebar.css b/browser/components/nullsec/sidebar.css
 new file mode 100644
-index 00000000..94f4f1ee
+index 00000000..27faaec3
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.css
-@@ -0,0 +1,1584 @@
+@@ -0,0 +1,1576 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -2573,7 +2572,6 @@ index 00000000..94f4f1ee
 +  color: var(--ns-link);
 +}
 +
-+#mode-pill,
 +#effort-pill {
 +  flex: 0 0 auto;
 +}
@@ -2583,12 +2581,6 @@ index 00000000..94f4f1ee
 +  min-width: 0;
 +}
 +
-+@media (max-width: 400px) {
-+  #mode-pill-label {
-+    display: none;
-+  }
-+}
-+
 +#model-pill-label {
 +  min-width: 0;
 +  overflow: hidden;
@@ -2596,7 +2588,6 @@ index 00000000..94f4f1ee
 +  white-space: nowrap;
 +}
 +
-+#mode-pill-label,
 +#effort-pill-label {
 +  flex: 0 0 auto;
 +  white-space: nowrap;
@@ -3045,10 +3036,10 @@ index 00000000..94f4f1ee
 +}
 diff --git a/browser/components/nullsec/sidebar.html b/browser/components/nullsec/sidebar.html
 new file mode 100644
-index 00000000..1834bce2
+index 00000000..8ec3b408
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.html
-@@ -0,0 +1,397 @@
+@@ -0,0 +1,368 @@
 +<!-- This Source Code Form is subject to the terms of the Mozilla Public
 +   - License, v. 2.0. If a copy of the MPL was not distributed with this
 +   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
@@ -3220,18 +3211,6 @@ index 00000000..1834bce2
 +            >
 +              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
 +            </button>
-+            <button
-+              id="mode-pill"
-+              class="composer-pill"
-+              type="button"
-+              aria-haspopup="listbox"
-+              aria-expanded="false"
-+              title="Agent mode"
-+            >
-+              <svg class="pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
-+              <span id="mode-pill-label">Build</span>
-+              <svg class="pill-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-+            </button>
 +          </div>
 +          <div class="composer-group composer-group-model">
 +            <button
@@ -3296,23 +3275,6 @@ index 00000000..1834bce2
 +        <button id="model-manage" class="popover-footer" type="button">
 +          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
 +          <span>Manage models</span>
-+        </button>
-+      </div>
-+
-+      <div id="mode-menu" class="popover popover-sm" hidden>
-+        <button class="popover-option" data-mode="build" type="button">
-+          <span class="popover-option-main">
-+            <span class="popover-option-title">Build</span>
-+            <span class="popover-option-sub">Agent can navigate, click and capture flags</span>
-+          </span>
-+          <svg class="popover-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
-+        </button>
-+        <button class="popover-option" data-mode="plan" type="button">
-+          <span class="popover-option-main">
-+            <span class="popover-option-title">Plan</span>
-+            <span class="popover-option-sub">Answer only, never operates the browser</span>
-+          </span>
-+          <svg class="popover-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
 +        </button>
 +      </div>
 +
@@ -3448,10 +3410,10 @@ index 00000000..1834bce2
 +</html>
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..edf4cf5b
+index 00000000..b0696914
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
-@@ -0,0 +1,2823 @@
+@@ -0,0 +1,2791 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -3483,7 +3445,6 @@ index 00000000..edf4cf5b
 +  modelId: "browser.nullsec.ai.modelId",
 +  disabled: "browser.nullsec.ai.disabled",
 +  effort: "browser.nullsec.ai.effort",
-+  mode: "browser.nullsec.ai.mode",
 +  anonymous: "browser.nullsec.ai.anonymous",
 +};
 +
@@ -4096,14 +4057,6 @@ index 00000000..edf4cf5b
 +  }
 +}
 +
-+function renderModePill() {
-+  const mode = Services.prefs.getStringPref(PREF.mode, "build");
-+  if (dom.modePillLabel) {
-+    dom.modePillLabel.textContent = mode === "plan" ? "Plan" : "Build";
-+  }
-+  markPopoverOptions(dom.modeMenu, "mode", mode);
-+}
-+
 +function renderEffortPill() {
 +  const effort = Services.prefs.getStringPref(PREF.effort, "max");
 +  if (dom.effortPillLabel) {
@@ -4114,13 +4067,7 @@ index 00000000..edf4cf5b
 +
 +function renderPills() {
 +  renderModelPill();
-+  renderModePill();
 +  renderEffortPill();
-+}
-+
-+function applyMode(mode) {
-+  Services.prefs.setStringPref(PREF.mode, mode === "plan" ? "plan" : "build");
-+  renderModePill();
 +}
 +
 +function applyEffort(effort) {
@@ -4134,12 +4081,12 @@ index 00000000..edf4cf5b
 +}
 +
 +function closePopovers() {
-+  for (const menu of [dom.modelMenu, dom.modeMenu, dom.effortMenu]) {
++  for (const menu of [dom.modelMenu, dom.effortMenu]) {
 +    if (menu) {
 +      menu.hidden = true;
 +    }
 +  }
-+  for (const pill of [dom.modelPill, dom.modePill, dom.effortPill]) {
++  for (const pill of [dom.modelPill, dom.effortPill]) {
 +    pill?.setAttribute("aria-expanded", "false");
 +  }
 +}
@@ -5128,10 +5075,7 @@ index 00000000..edf4cf5b
 +    generateReport({ open: true });
 +    return;
 +  }
-+  if (
-+    getBoolPref(PREF.autopilot, false) &&
-+    Services.prefs.getStringPref(PREF.mode, "build") === "build"
-+  ) {
++  if (getBoolPref(PREF.autopilot, false)) {
 +    return runAgent(trimmed);
 +  }
 +  if (!isAiConfigured()) {
@@ -6048,15 +5992,12 @@ index 00000000..edf4cf5b
 +  dom.modelPill = $("model-pill");
 +  dom.modelPillLabel = $("model-pill-label");
 +  dom.modelPillIcon = $("model-pill-icon");
-+  dom.modePill = $("mode-pill");
-+  dom.modePillLabel = $("mode-pill-label");
 +  dom.effortPill = $("effort-pill");
 +  dom.effortPillLabel = $("effort-pill-label");
 +  dom.modelMenu = $("model-menu");
 +  dom.modelMenuList = $("model-menu-list");
 +  dom.modelSearch = $("model-search");
 +  dom.modelManage = $("model-manage");
-+  dom.modeMenu = $("mode-menu");
 +  dom.effortMenu = $("effort-menu");
 +  dom.manage = $("manage-models");
 +  dom.manageList = $("manage-list");
@@ -6130,10 +6071,6 @@ index 00000000..edf4cf5b
 +    event.stopPropagation();
 +    togglePopover(dom.modelMenu, dom.modelPill, true);
 +  });
-+  dom.modePill.addEventListener("click", event => {
-+    event.stopPropagation();
-+    togglePopover(dom.modeMenu, dom.modePill, false);
-+  });
 +  dom.effortPill.addEventListener("click", event => {
 +    event.stopPropagation();
 +    togglePopover(dom.effortMenu, dom.effortPill, false);
@@ -6142,13 +6079,6 @@ index 00000000..edf4cf5b
 +    renderModelMenu(dom.modelSearch.value)
 +  );
 +  dom.modelManage.addEventListener("click", openManageModels);
-+  dom.modeMenu.addEventListener("click", event => {
-+    const option = event.target.closest("[data-mode]");
-+    if (option) {
-+      applyMode(option.dataset.mode);
-+      closePopovers();
-+    }
-+  });
 +  dom.effortMenu.addEventListener("click", event => {
 +    const option = event.target.closest("[data-effort]");
 +    if (option) {
