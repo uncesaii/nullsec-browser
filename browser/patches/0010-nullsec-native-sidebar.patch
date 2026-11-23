@@ -1198,10 +1198,10 @@ index 00000000..c9cd4b19
 +init();
 diff --git a/browser/components/nullsec/sidebar.css b/browser/components/nullsec/sidebar.css
 new file mode 100644
-index 00000000..9cc8eb31
+index 00000000..c50fab8a
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.css
-@@ -0,0 +1,883 @@
+@@ -0,0 +1,946 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -1209,15 +1209,26 @@ index 00000000..9cc8eb31
 +:root {
 +  background-color: transparent;
 +  color: var(--sidebar-text-color);
++  --ns-font: "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont,
++    "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial,
++    sans-serif;
++  --ns-mono: "JetBrains Mono", "SF Mono", "Cascadia Code", "Fira Code",
++    Consolas, "Liberation Mono", monospace;
++  --ns-ease: cubic-bezier(0.2, 0, 0, 1);
 +}
 +
 +body {
++  -webkit-font-smoothing: antialiased;
 +  display: flex;
 +  flex-direction: column;
++  font-family: var(--ns-font);
++  font-size: 14px;
 +  height: 100%;
++  line-height: 1.55;
 +  margin: 0;
 +  overflow: hidden;
 +  position: relative;
++  text-rendering: optimizeLegibility;
 +}
 +
 +#header {
@@ -1225,17 +1236,25 @@ index 00000000..9cc8eb31
 +  background-color: var(--sidebar-background-color);
 +  border-bottom: 1px solid var(--border-color);
 +  display: flex;
-+  flex-direction: row;
-+  gap: var(--space-xsmall);
-+  padding-inline: var(--space-large);
 +  flex: 0 0 auto;
-+  min-height: 44px;
++  flex-direction: row;
++  gap: 2px;
++  min-height: 48px;
++  padding-inline: var(--space-medium) var(--space-small);
++}
++
++.header-logo {
++  flex: 0 0 auto;
++  height: 18px;
++  margin-inline: 4px 6px;
++  width: 18px;
 +}
 +
 +#header-title {
 +  flex: 1;
 +  font-size: 14px;
-+  font-weight: var(--font-weight-semibold);
++  font-weight: 600;
++  letter-spacing: -0.01em;
 +  min-width: 0;
 +  overflow: hidden;
 +  text-overflow: ellipsis;
@@ -1255,15 +1274,18 @@ index 00000000..9cc8eb31
 +  flex-direction: column;
 +  min-height: 0;
 +  overflow-y: auto;
-+  padding: var(--space-medium) var(--space-large) 0;
++  padding: var(--space-medium) var(--space-medium) 0;
++  scrollbar-color: var(--border-color) transparent;
++  scrollbar-width: thin;
 +}
 +
 +#chat-messages {
 +  display: flex;
 +  flex-direction: column;
-+  gap: var(--space-large);
++  gap: 18px;
 +  margin: 0 auto;
 +  max-width: 100%;
++  padding-block-end: var(--space-small);
 +  width: 100%;
 +}
 +
@@ -1329,9 +1351,9 @@ index 00000000..9cc8eb31
 +.welcome-title {
 +  color: var(--text-color);
 +  font-size: 20px;
-+  font-weight: 500;
++  font-weight: 600;
++  letter-spacing: -0.015em;
 +  margin: 0;
-+  letter-spacing: -0.01em;
 +}
 +
 +.welcome-sub {
@@ -1398,17 +1420,20 @@ index 00000000..9cc8eb31
 +
 +.message .bubble {
 +  background-color: var(--background-color-box);
-+  border-radius: 12px;
++  border: 1px solid var(--border-color-deemphasized);
++  border-radius: 16px 16px 4px 16px;
 +  color: var(--text-color);
-+  max-width: 85%;
++  font-size: 14px;
++  line-height: 1.55;
++  max-width: 86%;
 +  overflow-wrap: anywhere;
-+  padding: 8px 14px;
++  padding: 9px 13px;
 +  white-space: pre-wrap;
 +}
 +
 +.assistant-body {
 +  color: var(--text-color);
-+  line-height: 1.6;
++  line-height: 1.62;
 +  overflow-wrap: anywhere;
 +}
 +
@@ -1455,7 +1480,7 @@ index 00000000..9cc8eb31
 +  background-color: var(--background-color-canvas);
 +  border: 1px solid var(--border-color-deemphasized);
 +  border-radius: var(--border-radius-small);
-+  font-family: var(--monospace-font-family, monospace);
++  font-family: var(--ns-mono);
 +  font-size: 0.92em;
 +  padding: 0 3px;
 +}
@@ -1506,7 +1531,7 @@ index 00000000..9cc8eb31
 +  align-items: center;
 +  color: var(--text-color-deemphasized);
 +  display: inline-flex;
-+  font-size: 13px;
++  font-size: 12.5px;
 +  gap: var(--space-small);
 +}
 +
@@ -1574,13 +1599,19 @@ index 00000000..9cc8eb31
 +
 +.reasoning > summary {
 +  align-items: center;
++  border-radius: 10px;
 +  color: var(--text-color-deemphasized);
 +  cursor: pointer;
 +  display: flex;
-+  font-size: 12px;
++  font-size: 12.5px;
 +  gap: var(--space-small);
 +  list-style: none;
 +  padding: 6px 10px;
++  transition: background-color 0.12s var(--ns-ease);
++}
++
++.reasoning > summary:hover {
++  background-color: var(--button-background-color-ghost-hover);
 +}
 +
 +.reasoning > summary::-webkit-details-marker {
@@ -1730,7 +1761,7 @@ index 00000000..9cc8eb31
 +  background-color: var(--background-color-canvas);
 +  border: 1px solid var(--border-color-deemphasized);
 +  border-radius: var(--border-radius-small);
-+  font-family: var(--monospace-font-family, monospace);
++  font-family: var(--ns-mono);
 +  font-size: 11px;
 +  margin: 0;
 +  max-height: 180px;
@@ -1776,13 +1807,17 @@ index 00000000..9cc8eb31
 +  align-items: center;
 +  background: transparent;
 +  border: none;
-+  border-radius: var(--border-radius-small);
++  border-radius: 8px;
 +  color: inherit;
 +  cursor: pointer;
 +  display: inline-flex;
 +  font-size: 12px;
++  font-weight: 500;
 +  gap: 4px;
-+  padding: 2px 6px;
++  padding: 3px 7px;
++  transition:
++    background-color 0.12s var(--ns-ease),
++    color 0.12s var(--ns-ease);
 +}
 +
 +.action-button:hover {
@@ -1827,31 +1862,44 @@ index 00000000..9cc8eb31
 +#composer {
 +  background-color: var(--sidebar-background-color);
 +  flex: 0 0 auto;
-+  padding: var(--space-small) var(--space-large) var(--space-large);
++  padding: var(--space-small) var(--space-medium) var(--space-medium);
 +}
 +
 +#composer-shell {
 +  background-color: var(--background-color-box);
 +  border: 1px solid var(--border-color);
-+  border-radius: 20px;
++  border-radius: 18px;
++  box-shadow:
++    0 1px 2px rgba(0, 0, 0, 0.06),
++    0 14px 28px -18px rgba(0, 0, 0, 0.35);
 +  display: flex;
 +  flex-direction: column;
-+  gap: var(--space-small);
++  gap: 6px;
 +  padding: 8px;
++  transition:
++    border-color 0.15s var(--ns-ease),
++    box-shadow 0.15s var(--ns-ease);
 +}
 +
 +#composer-shell:focus-within {
-+  border-color: var(--border-color-interactive, var(--border-color));
++  border-color: color-mix(
++    in srgb,
++    var(--focus-outline-color, AccentColor) 55%,
++    var(--border-color)
++  );
++  box-shadow:
++    0 1px 2px rgba(0, 0, 0, 0.06),
++    0 0 0 3px color-mix(in srgb, var(--focus-outline-color, AccentColor) 16%, transparent);
 +}
 +
 +.composer-context {
 +  align-items: center;
 +  color: var(--text-color-deemphasized);
 +  display: flex;
-+  font-size: 12px;
-+  gap: 6px;
++  font-size: 11px;
++  gap: 5px;
 +  overflow: hidden;
-+  padding: 0 6px;
++  padding: 0 4px;
 +}
 +
 +.composer-context[hidden] {
@@ -1871,13 +1919,17 @@ index 00000000..9cc8eb31
 +  color: var(--text-color);
 +  font: inherit;
 +  font-size: 14px;
-+  line-height: 1.5;
++  line-height: 1.55;
 +  max-height: 192px;
 +  min-height: 26px;
 +  outline: none;
-+  padding: 2px 6px;
++  padding: 4px 6px;
 +  resize: none;
 +  width: 100%;
++}
++
++#chat-input::placeholder {
++  color: var(--text-color-deemphasized);
 +}
 +
 +#composer-actions {
@@ -1886,6 +1938,7 @@ index 00000000..9cc8eb31
 +  flex-wrap: nowrap;
 +  gap: var(--space-small);
 +  justify-content: space-between;
++  min-height: 30px;
 +}
 +
 +.composer-group {
@@ -1919,11 +1972,14 @@ index 00000000..9cc8eb31
 +  color: var(--text-color-deemphasized);
 +  cursor: pointer;
 +  display: inline-flex;
-+  flex: 0 0 28px;
-+  height: 28px;
++  flex: 0 0 30px;
++  height: 30px;
 +  justify-content: center;
-+  min-width: 28px;
-+  width: 28px;
++  min-width: 30px;
++  transition:
++    background-color 0.12s var(--ns-ease),
++    color 0.12s var(--ns-ease);
++  width: 30px;
 +}
 +
 +.icon-button:hover {
@@ -1950,32 +2006,21 @@ index 00000000..9cc8eb31
 +  cursor: pointer;
 +  fill: currentColor;
 +  flex: 0 0 auto;
-+  font-size: 13px;
-+  height: 28px;
++  font-size: 12.5px;
++  font-weight: 500;
++  height: 30px;
 +  min-width: 84px;
-+  max-width: 130px;
++  max-width: 132px;
 +  overflow: hidden;
 +  padding: 0 22px 0 10px;
 +  text-overflow: ellipsis;
++  transition:
++    background-color 0.12s var(--ns-ease),
++    color 0.12s var(--ns-ease);
 +  white-space: nowrap;
 +}
 +
 +.provider-pill:hover {
-+  background-color: var(--button-background-color-ghost-hover);
-+  color: var(--text-color);
-+}
-+
-+.ghost-button {
-+  background: transparent;
-+  border: none;
-+  border-radius: 999px;
-+  color: var(--text-color-deemphasized);
-+  cursor: pointer;
-+  font-size: 13px;
-+  padding: 4px 10px;
-+}
-+
-+.ghost-button:hover {
 +  background-color: var(--button-background-color-ghost-hover);
 +  color: var(--text-color);
 +}
@@ -1985,14 +2030,32 @@ index 00000000..9cc8eb31
 +  background-color: var(--button-background-color-primary, AccentColor);
 +  border: none;
 +  border-radius: 999px;
++  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
 +  color: var(--button-text-color-primary, AccentColorText);
 +  cursor: pointer;
 +  display: inline-flex;
-+  flex: 0 0 28px;
-+  height: 28px;
++  flex: 0 0 30px;
++  height: 30px;
 +  justify-content: center;
-+  min-width: 28px;
-+  width: 28px;
++  min-width: 30px;
++  transition:
++    filter 0.12s var(--ns-ease),
++    transform 0.12s var(--ns-ease);
++  width: 30px;
++}
++
++.send-button:hover:not(:disabled) {
++  filter: brightness(1.07);
++  transform: translateY(-1px);
++}
++
++.send-button:active:not(:disabled) {
++  transform: translateY(0);
++}
++
++.send-button .icon {
++  height: 16px;
++  width: 16px;
 +}
 +
 +.send-button:disabled {
@@ -2087,10 +2150,10 @@ index 00000000..9cc8eb31
 +}
 diff --git a/browser/components/nullsec/sidebar.html b/browser/components/nullsec/sidebar.html
 new file mode 100644
-index 00000000..92c7b5dd
+index 00000000..1565f944
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.html
-@@ -0,0 +1,278 @@
+@@ -0,0 +1,287 @@
 +<!-- This Source Code Form is subject to the terms of the Mozilla Public
 +   - License, v. 2.0. If a copy of the MPL was not distributed with this
 +   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
@@ -2149,7 +2212,19 @@ index 00000000..92c7b5dd
 +  </head>
 +  <body>
 +    <div id="header">
++      <img
++        class="header-logo"
++        src="chrome://browser/content/nullsec/nullsec.svg"
++        alt=""
++      />
 +      <span id="header-title">NullSec</span>
++      <moz-button
++        id="header-reports"
++        type="icon ghost"
++        iconsrc="chrome://global/skin/icons/edit.svg"
++        aria-label="Generate report"
++        title="Generate report"
++      ></moz-button>
 +      <moz-button
 +        id="header-traffic"
 +        type="icon ghost"
@@ -2265,9 +2340,6 @@ index 00000000..92c7b5dd
 +            </select>
 +          </div>
 +          <div class="composer-group">
-+            <button id="chip-report" class="ghost-button" type="button">
-+              Report
-+            </button>
 +            <button
 +              id="chat-stop"
 +              class="send-button is-stop"
@@ -2371,7 +2443,7 @@ index 00000000..92c7b5dd
 +</html>
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..46c206bf
+index 00000000..1b3e90fd
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
 @@ -0,0 +1,2252 @@
@@ -4499,7 +4571,7 @@ index 00000000..46c206bf
 +  dom.input = $("chat-input");
 +  dom.send = $("chat-send");
 +  dom.stop = $("chat-stop");
-+  dom.report = $("chip-report");
++  dom.report = $("header-reports");
 +  dom.welcomeSetup = $("welcome-setup");
 +  dom.welcomeReady = $("welcome-ready");
 +  dom.welcomeCta = $("welcome-setup-cta");
