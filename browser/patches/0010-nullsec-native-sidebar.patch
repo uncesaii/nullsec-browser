@@ -1198,67 +1198,114 @@ index 00000000..c9cd4b19
 +init();
 diff --git a/browser/components/nullsec/sidebar.css b/browser/components/nullsec/sidebar.css
 new file mode 100644
-index 00000000..c50fab8a
+index 00000000..1ab88685
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.css
-@@ -0,0 +1,946 @@
+@@ -0,0 +1,1038 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 +
 +:root {
++  color-scheme: light dark;
 +  background-color: transparent;
-+  color: var(--sidebar-text-color);
-+  --ns-font: "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont,
-+    "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial,
-+    sans-serif;
-+  --ns-mono: "JetBrains Mono", "SF Mono", "Cascadia Code", "Fira Code",
-+    Consolas, "Liberation Mono", monospace;
-+  --ns-ease: cubic-bezier(0.2, 0, 0, 1);
++  color: var(--ns-fg);
++  --ns-font: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
++    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
++  --ns-mono: ui-monospace, "SF Mono", "Cascadia Code", "Fira Code", Menlo,
++    Consolas, monospace;
++  --ns-bg: light-dark(#ffffff, #09090b);
++  --ns-fg: light-dark(#171717, #fafafa);
++  --ns-muted: light-dark(#f4f4f5, #27272a);
++  --ns-muted-fg: light-dark(#71717a, #a1a1aa);
++  --ns-border: light-dark(#e4e4e7, #27272a);
++  --ns-panel: light-dark(#fafafa, #0c0c0e);
++  --ns-accent: light-dark(#f4f4f5, #27272a);
++  --ns-primary: light-dark(#18181b, #fafafa);
++  --ns-primary-fg: light-dark(#fafafa, #18181b);
++  --ns-link: light-dark(#2563eb, #60a5fa);
++  --ns-ease: cubic-bezier(0.32, 0.72, 0, 1);
 +}
 +
 +body {
 +  -webkit-font-smoothing: antialiased;
++  background-color: var(--ns-bg);
++  color: var(--ns-fg);
 +  display: flex;
 +  flex-direction: column;
 +  font-family: var(--ns-font);
-+  font-size: 14px;
++  font-size: 16px;
 +  height: 100%;
-+  line-height: 1.55;
++  line-height: 1.5;
 +  margin: 0;
 +  overflow: hidden;
 +  position: relative;
-+  text-rendering: optimizeLegibility;
++}
++
++*,
++*::before,
++*::after {
++  box-sizing: border-box;
 +}
 +
 +#header {
 +  align-items: center;
-+  background-color: var(--sidebar-background-color);
-+  border-bottom: 1px solid var(--border-color);
++  background-color: var(--ns-bg);
 +  display: flex;
 +  flex: 0 0 auto;
 +  flex-direction: row;
-+  gap: 2px;
++  gap: 8px;
 +  min-height: 48px;
-+  padding-inline: var(--space-medium) var(--space-small);
++  overflow: hidden;
++  padding-inline: 16px;
 +}
 +
 +.header-logo {
 +  flex: 0 0 auto;
-+  height: 18px;
-+  margin-inline: 4px 6px;
-+  width: 18px;
++  height: 20px;
++  width: 20px;
 +}
 +
 +#header-title {
 +  flex: 1;
 +  font-size: 14px;
-+  font-weight: 600;
-+  letter-spacing: -0.01em;
++  font-weight: 500;
++  letter-spacing: -0.006em;
 +  min-width: 0;
 +  overflow: hidden;
 +  text-overflow: ellipsis;
 +  white-space: nowrap;
++}
++
++.ns-icon-btn {
++  align-items: center;
++  background: transparent;
++  border: none;
++  border-radius: 999px;
++  color: var(--ns-muted-fg);
++  cursor: pointer;
++  display: inline-flex;
++  flex: 0 0 32px;
++  height: 32px;
++  justify-content: center;
++  min-width: 32px;
++  overflow: hidden;
++  transition:
++    background-color 0.15s var(--ns-ease),
++    color 0.15s var(--ns-ease);
++  width: 32px;
++}
++
++.ns-icon-btn:hover {
++  background-color: var(--ns-accent);
++  color: var(--ns-fg);
++}
++
++.ns-icon-btn svg {
++  display: block;
++  flex: none;
++  height: 16px;
++  width: 16px;
 +}
 +
 +#thread-wrap {
@@ -1274,27 +1321,28 @@ index 00000000..c50fab8a
 +  flex-direction: column;
 +  min-height: 0;
 +  overflow-y: auto;
-+  padding: var(--space-medium) var(--space-medium) 0;
-+  scrollbar-color: var(--border-color) transparent;
++  padding: 16px 16px 0;
++  scrollbar-color: var(--ns-border) transparent;
 +  scrollbar-width: thin;
 +}
 +
 +#chat-messages {
 +  display: flex;
 +  flex-direction: column;
-+  gap: 18px;
++  gap: 24px;
 +  margin: 0 auto;
-+  max-width: 100%;
-+  padding-block-end: var(--space-small);
++  max-width: 44rem;
++  padding-block-end: 56px;
 +  width: 100%;
 +}
 +
 +#chat-welcome {
 +  display: flex;
 +  flex-direction: column;
-+  gap: var(--space-small);
++  gap: 8px;
 +  margin: auto;
-+  padding: var(--space-large) 0;
++  max-width: 44rem;
++  padding: 16px;
 +  text-align: center;
 +  width: 100%;
 +}
@@ -1339,7 +1387,7 @@ index 00000000..c50fab8a
 +}
 +
 +.welcome-steps {
-+  color: var(--text-color-deemphasized);
++  color: var(--ns-muted-fg);
 +  font-size: 12px;
 +  line-height: 1.7;
 +  margin: var(--space-small) auto 0;
@@ -1349,16 +1397,16 @@ index 00000000..c50fab8a
 +}
 +
 +.welcome-title {
-+  color: var(--text-color);
-+  font-size: 20px;
-+  font-weight: 600;
-+  letter-spacing: -0.015em;
++  color: var(--ns-fg);
++  font-size: 24px;
++  font-weight: 500;
++  letter-spacing: -0.025em;
 +  margin: 0;
 +}
 +
 +.welcome-sub {
-+  color: var(--text-color-deemphasized);
-+  font-size: 13px;
++  color: var(--ns-muted-fg);
++  font-size: 14px;
 +  margin: 0;
 +  overflow: hidden;
 +  text-overflow: ellipsis;
@@ -1392,20 +1440,27 @@ index 00000000..c50fab8a
 +.suggestion-chip {
 +  align-items: center;
 +  background: transparent;
-+  border: 1px solid var(--border-color-deemphasized);
++  border: 1px solid color-mix(in srgb, var(--ns-border) 60%, transparent);
 +  border-radius: 999px;
-+  color: var(--text-color);
++  color: var(--ns-fg);
 +  cursor: pointer;
 +  display: inline-flex;
-+  font-size: 13px;
++  font-size: 14px;
++  font-weight: 400;
 +  gap: 6px;
-+  padding: 4px 12px;
-+  transition: background-color 0.12s ease;
++  padding: 6px 14px;
++  transition: background-color 0.15s var(--ns-ease);
++  white-space: nowrap;
++}
++
++.suggestion-chip svg {
++  height: 16px;
++  width: 16px;
 +}
 +
 +.suggestion-chip:hover,
 +.suggestion-chip.is-active {
-+  background-color: var(--button-background-color-ghost-hover);
++  background-color: var(--ns-accent);
 +}
 +
 +.message {
@@ -1419,22 +1474,23 @@ index 00000000..c50fab8a
 +}
 +
 +.message .bubble {
-+  background-color: var(--background-color-box);
-+  border: 1px solid var(--border-color-deemphasized);
-+  border-radius: 16px 16px 4px 16px;
-+  color: var(--text-color);
-+  font-size: 14px;
-+  line-height: 1.55;
-+  max-width: 86%;
++  background-color: var(--ns-muted);
++  border-radius: 12px;
++  color: var(--ns-fg);
++  font-size: 16px;
++  line-height: 1.5;
++  max-width: 85%;
 +  overflow-wrap: anywhere;
-+  padding: 9px 13px;
++  padding: 8px 16px;
 +  white-space: pre-wrap;
 +}
 +
 +.assistant-body {
-+  color: var(--text-color);
-+  line-height: 1.62;
++  color: var(--ns-fg);
++  font-size: 16px;
++  line-height: 1.625;
 +  overflow-wrap: anywhere;
++  padding-inline: 8px;
 +}
 +
 +.assistant-body > :first-child {
@@ -1473,12 +1529,12 @@ index 00000000..c50fab8a
 +}
 +
 +.assistant-body a {
-+  color: var(--link-color);
++  color: var(--ns-link);
 +}
 +
 +.assistant-body code {
-+  background-color: var(--background-color-canvas);
-+  border: 1px solid var(--border-color-deemphasized);
++  background-color: var(--ns-panel);
++  border: 1px solid var(--ns-border);
 +  border-radius: var(--border-radius-small);
 +  font-family: var(--ns-mono);
 +  font-size: 0.92em;
@@ -1486,8 +1542,8 @@ index 00000000..c50fab8a
 +}
 +
 +.assistant-body pre {
-+  background-color: var(--background-color-canvas);
-+  border: 1px solid var(--border-color-deemphasized);
++  background-color: var(--ns-panel);
++  border: 1px solid var(--ns-border);
 +  border-radius: var(--border-radius-small);
 +  max-width: 100%;
 +  overflow: auto;
@@ -1509,7 +1565,7 @@ index 00000000..c50fab8a
 +
 +.assistant-body th,
 +.assistant-body td {
-+  border: 1px solid var(--border-color-deemphasized);
++  border: 1px solid var(--ns-border);
 +  font-size: 12px;
 +  padding: 4px 6px;
 +  text-align: start;
@@ -1517,22 +1573,22 @@ index 00000000..c50fab8a
 +}
 +
 +.assistant-body th {
-+  background-color: var(--background-color-canvas);
++  background-color: var(--ns-panel);
 +  font-weight: var(--font-weight-semibold);
 +}
 +
 +.assistant-body hr {
 +  border: none;
-+  border-top: 1px solid var(--border-color-deemphasized);
++  border-top: 1px solid var(--ns-border);
 +  margin-block: var(--space-small);
 +}
 +
 +.assistant-status {
 +  align-items: center;
-+  color: var(--text-color-deemphasized);
++  color: var(--ns-muted-fg);
 +  display: inline-flex;
-+  font-size: 12.5px;
-+  gap: var(--space-small);
++  font-size: 14px;
++  gap: 8px;
 +}
 +
 +.assistant-status[hidden] {
@@ -1540,36 +1596,42 @@ index 00000000..c50fab8a
 +}
 +
 +.dots {
-+  display: inline-flex;
-+  gap: 3px;
++  display: inline-grid;
++  flex: 0 0 auto;
++  gap: 1.5px;
++  grid-template-columns: repeat(5, 2px);
++  grid-template-rows: repeat(5, 2px);
++  height: 16px;
++  place-content: center;
++  width: 16px;
 +}
 +
 +.dots i {
-+  animation: dot-pulse 1.2s infinite ease-in-out;
++  animation: dot-blink 1.4s ease-in-out infinite;
 +  background-color: currentColor;
 +  border-radius: 50%;
-+  height: 5px;
-+  opacity: 0.3;
-+  width: 5px;
++  height: 2px;
++  opacity: 0.15;
++  width: 2px;
 +}
 +
-+.dots i:nth-child(2) {
-+  animation-delay: 0.15s;
-+}
-+
-+.dots i:nth-child(3) {
-+  animation-delay: 0.3s;
-+}
-+
-+@keyframes dot-pulse {
++@keyframes dot-blink {
 +  0%,
 +  100% {
-+    opacity: 0.25;
-+    transform: translateY(0);
-+  }
-+  40% {
 +    opacity: 1;
-+    transform: translateY(-1px);
++  }
++  50% {
++    opacity: 0.15;
++  }
++}
++
++.spin {
++  animation: ns-spin 0.8s linear infinite;
++}
++
++@keyframes ns-spin {
++  to {
++    transform: rotate(360deg);
 +  }
 +}
 +
@@ -1590,28 +1652,27 @@ index 00000000..c50fab8a
 +}
 +
 +.reasoning {
-+  background-color: var(--background-color-canvas);
-+  border: 1px solid var(--border-color-deemphasized);
-+  border-radius: var(--border-radius-medium);
-+  margin-block-end: var(--space-small);
-+  overflow: hidden;
++  margin-block-end: 4px;
++  overflow: visible;
++  width: 100%;
 +}
 +
 +.reasoning > summary {
 +  align-items: center;
-+  border-radius: 10px;
-+  color: var(--text-color-deemphasized);
++  color: var(--ns-muted-fg);
 +  cursor: pointer;
-+  display: flex;
-+  font-size: 12.5px;
-+  gap: var(--space-small);
++  display: inline-flex;
++  font-size: 14px;
++  font-weight: 400;
++  gap: 8px;
 +  list-style: none;
-+  padding: 6px 10px;
-+  transition: background-color 0.12s var(--ns-ease);
++  max-width: 100%;
++  padding: 6px 0;
++  transition: color 0.15s var(--ns-ease);
 +}
 +
 +.reasoning > summary:hover {
-+  background-color: var(--button-background-color-ghost-hover);
++  color: var(--ns-fg);
 +}
 +
 +.reasoning > summary::-webkit-details-marker {
@@ -1619,9 +1680,10 @@ index 00000000..c50fab8a
 +}
 +
 +.reasoning .chevron {
-+  margin-inline-start: auto;
++  flex: 0 0 auto;
++  margin-inline-start: 0;
 +  transform: rotate(-90deg);
-+  transition: transform 0.15s ease;
++  transition: transform 0.2s var(--ns-ease);
 +}
 +
 +.reasoning[open] .chevron {
@@ -1629,31 +1691,14 @@ index 00000000..c50fab8a
 +}
 +
 +.reasoning-body {
-+  border-top: 1px solid var(--border-color-deemphasized);
 +  display: flex;
 +  flex-direction: column;
-+  gap: 4px;
-+  padding: 6px 10px 8px;
-+}
-+
-+.reasoning-step {
-+  color: var(--text-color-deemphasized);
-+  font-size: 12px;
-+  overflow-wrap: anywhere;
-+}
-+
-+.reasoning-step strong {
-+  color: var(--text-color);
-+  font-weight: var(--font-weight-semibold);
-+}
-+
-+.reasoning-thought {
-+  color: var(--text-color-deemphasized);
-+  font-size: 11px;
-+  margin-block-start: 2px;
++  gap: 2px;
++  padding: 2px 0 0;
 +}
 +
 +.reasoning-label {
++  font-size: 12px;
 +  overflow: hidden;
 +  text-overflow: ellipsis;
 +  white-space: nowrap;
@@ -1664,23 +1709,24 @@ index 00000000..c50fab8a
 +}
 +
 +.walk-step {
-+  border-inline-start: 2px solid var(--border-color-deemphasized);
-+  margin-inline-start: 6px;
-+  padding-inline-start: 8px;
-+}
-+
-+.walk-step[data-state="running"] {
-+  border-inline-start-color: var(--button-background-color-primary, AccentColor);
++  margin: 0;
++  padding: 0;
 +}
 +
 +.walk-head {
 +  align-items: center;
++  border-radius: 8px;
 +  cursor: pointer;
 +  display: flex;
 +  font-size: 12px;
-+  gap: 6px;
++  gap: 8px;
 +  list-style: none;
-+  padding: 3px 2px;
++  padding: 4px 6px;
++  transition: background-color 0.15s var(--ns-ease);
++}
++
++.walk-head:hover {
++  background-color: var(--ns-accent);
 +}
 +
 +.walk-head::-webkit-details-marker {
@@ -1690,9 +1736,9 @@ index 00000000..c50fab8a
 +.walk-step .chevron {
 +  flex: 0 0 auto;
 +  margin-inline-start: auto;
-+  opacity: 0.7;
++  opacity: 0.6;
 +  transform: rotate(-90deg);
-+  transition: transform 0.15s ease;
++  transition: transform 0.2s var(--ns-ease);
 +}
 +
 +.walk-step[open] .chevron {
@@ -1701,29 +1747,31 @@ index 00000000..c50fab8a
 +
 +.walk-num {
 +  align-items: center;
-+  background-color: var(--background-color-canvas);
-+  border: 1px solid var(--border-color-deemphasized);
-+  border-radius: 50%;
-+  color: var(--text-color-deemphasized);
++  background-color: var(--ns-accent);
++  border-radius: 999px;
++  color: var(--ns-muted-fg);
 +  display: inline-flex;
 +  flex: 0 0 auto;
 +  font-size: 10px;
-+  height: 16px;
++  font-variant-numeric: tabular-nums;
++  height: 18px;
 +  justify-content: center;
-+  width: 16px;
++  width: 18px;
 +}
 +
 +.walk-icon {
++  color: var(--ns-muted-fg);
 +  display: inline-flex;
 +  flex: 0 0 auto;
 +}
 +
-+.walk-icon .icon {
++.walk-icon svg {
 +  height: 12px;
 +  width: 12px;
 +}
 +
 +.walk-title {
++  font-weight: 500;
 +  overflow: hidden;
 +  text-overflow: ellipsis;
 +  white-space: nowrap;
@@ -1732,14 +1780,14 @@ index 00000000..c50fab8a
 +.walk-detail {
 +  display: flex;
 +  flex-direction: column;
-+  gap: 6px;
-+  padding-block: 2px 6px;
-+  padding-inline-start: 22px;
++  gap: 8px;
++  padding-block: 2px 8px;
++  padding-inline-start: 32px;
 +}
 +
 +.walk-thought {
-+  color: var(--text-color-deemphasized);
-+  font-size: 11px;
++  color: var(--ns-muted-fg);
++  font-size: 12px;
 +  font-style: italic;
 +}
 +
@@ -1750,7 +1798,7 @@ index 00000000..c50fab8a
 +}
 +
 +.walk-section-title {
-+  color: var(--text-color-deemphasized);
++  color: var(--ns-muted-fg);
 +  font-size: 10px;
 +  font-weight: var(--font-weight-semibold);
 +  letter-spacing: 0.04em;
@@ -1758,45 +1806,46 @@ index 00000000..c50fab8a
 +}
 +
 +.walk-pre {
-+  background-color: var(--background-color-canvas);
-+  border: 1px solid var(--border-color-deemphasized);
-+  border-radius: var(--border-radius-small);
++  background-color: color-mix(in srgb, var(--ns-muted) 40%, transparent);
++  border: 1px solid var(--ns-border);
++  border-radius: 6px;
 +  font-family: var(--ns-mono);
-+  font-size: 11px;
++  font-size: 12px;
 +  margin: 0;
-+  max-height: 180px;
++  max-height: 220px;
 +  overflow: auto;
 +  overflow-wrap: anywhere;
-+  padding: 6px 8px;
++  padding: 12px;
 +  white-space: pre-wrap;
 +}
 +
 +.walk-table {
 +  border-collapse: collapse;
-+  font-size: 11px;
++  font-size: 12px;
 +  width: 100%;
 +}
 +
 +.walk-table th,
 +.walk-table td {
-+  border: 1px solid var(--border-color-deemphasized);
++  border: 1px solid var(--ns-border);
 +  padding: 3px 5px;
 +  text-align: start;
 +  vertical-align: top;
 +}
 +
 +.walk-table th {
-+  background-color: var(--background-color-canvas);
++  background-color: var(--ns-panel);
 +  font-weight: var(--font-weight-semibold);
 +}
 +
 +.assistant-actions {
 +  align-items: center;
-+  color: var(--text-color-deemphasized);
++  color: var(--ns-muted-fg);
 +  display: flex;
-+  gap: 2px;
-+  margin-block-start: var(--space-xsmall);
-+  min-height: 24px;
++  gap: 4px;
++  margin-block-start: 6px;
++  min-height: 28px;
++  padding-inline: 8px;
 +}
 +
 +.assistant-actions[hidden] {
@@ -1811,18 +1860,70 @@ index 00000000..c50fab8a
 +  color: inherit;
 +  cursor: pointer;
 +  display: inline-flex;
-+  font-size: 12px;
-+  font-weight: 500;
-+  gap: 4px;
-+  padding: 3px 7px;
++  height: 28px;
++  justify-content: center;
++  min-width: 28px;
++  padding: 0;
 +  transition:
-+    background-color 0.12s var(--ns-ease),
-+    color 0.12s var(--ns-ease);
++    background-color 0.15s var(--ns-ease),
++    color 0.15s var(--ns-ease);
++}
++
++.action-button svg {
++  height: 16px;
++  width: 16px;
 +}
 +
 +.action-button:hover {
-+  background-color: var(--button-background-color-ghost-hover);
-+  color: var(--text-color);
++  background-color: var(--ns-accent);
++  color: var(--ns-fg);
++}
++
++.text-button {
++  align-items: center;
++  background: transparent;
++  border: none;
++  border-radius: 8px;
++  color: var(--ns-fg);
++  cursor: pointer;
++  display: inline-flex;
++  font-size: 13px;
++  font-weight: 500;
++  gap: 6px;
++  padding: 5px 10px;
++  transition: background-color 0.15s var(--ns-ease);
++}
++
++.text-button:hover {
++  background-color: var(--ns-accent);
++}
++
++.ns-svg {
++  display: inline-flex;
++  flex: 0 0 auto;
++}
++
++.ns-svg svg {
++  height: 16px;
++  width: 16px;
++}
++
++.context-icon {
++  flex: 0 0 auto;
++  height: 12px;
++  width: 12px;
++}
++
++.stop-icon {
++  height: 12px;
++  width: 12px;
++}
++
++.reasoning > summary .ns-svg svg,
++.walk-icon .ns-svg svg,
++.chevron svg {
++  height: 12px;
++  width: 12px;
 +}
 +
 +.timing {
@@ -1839,10 +1940,10 @@ index 00000000..c50fab8a
 +
 +.scroll-bottom {
 +  align-items: center;
-+  background-color: var(--background-color-box);
-+  border: 1px solid var(--border-color);
++  background-color: var(--ns-muted);
++  border: 1px solid var(--ns-border);
 +  border-radius: 999px;
-+  color: var(--text-color);
++  color: var(--ns-fg);
 +  cursor: pointer;
 +  display: flex;
 +  height: 32px;
@@ -1859,47 +1960,40 @@ index 00000000..c50fab8a
 +  display: none;
 +}
 +
++.scroll-bottom svg {
++  height: 16px;
++  width: 16px;
++}
++
 +#composer {
-+  background-color: var(--sidebar-background-color);
++  background-color: var(--ns-bg);
 +  flex: 0 0 auto;
-+  padding: var(--space-small) var(--space-medium) var(--space-medium);
++  padding: 8px 16px 16px;
 +}
 +
 +#composer-shell {
-+  background-color: var(--background-color-box);
-+  border: 1px solid var(--border-color);
-+  border-radius: 18px;
-+  box-shadow:
-+    0 1px 2px rgba(0, 0, 0, 0.06),
-+    0 14px 28px -18px rgba(0, 0, 0, 0.35);
++  background-color: var(--ns-bg);
++  border: 1px solid color-mix(in srgb, var(--ns-border) 60%, transparent);
++  border-radius: 24px;
 +  display: flex;
 +  flex-direction: column;
-+  gap: 6px;
++  gap: 8px;
 +  padding: 8px;
-+  transition:
-+    border-color 0.15s var(--ns-ease),
-+    box-shadow 0.15s var(--ns-ease);
++  transition: border-color 0.15s var(--ns-ease);
 +}
 +
 +#composer-shell:focus-within {
-+  border-color: color-mix(
-+    in srgb,
-+    var(--focus-outline-color, AccentColor) 55%,
-+    var(--border-color)
-+  );
-+  box-shadow:
-+    0 1px 2px rgba(0, 0, 0, 0.06),
-+    0 0 0 3px color-mix(in srgb, var(--focus-outline-color, AccentColor) 16%, transparent);
++  border-color: var(--ns-border);
 +}
 +
 +.composer-context {
 +  align-items: center;
-+  color: var(--text-color-deemphasized);
++  color: var(--ns-muted-fg);
 +  display: flex;
-+  font-size: 11px;
-+  gap: 5px;
++  font-size: 12px;
++  gap: 6px;
 +  overflow: hidden;
-+  padding: 0 4px;
++  padding: 0 10px;
 +}
 +
 +.composer-context[hidden] {
@@ -1916,35 +2010,35 @@ index 00000000..c50fab8a
 +  background: transparent;
 +  border: none;
 +  box-sizing: border-box;
-+  color: var(--text-color);
++  color: var(--ns-fg);
 +  font: inherit;
-+  font-size: 14px;
-+  line-height: 1.55;
++  font-size: 16px;
++  line-height: 24px;
 +  max-height: 192px;
-+  min-height: 26px;
++  min-height: 40px;
 +  outline: none;
-+  padding: 4px 6px;
++  padding: 4px 10px;
 +  resize: none;
 +  width: 100%;
 +}
 +
 +#chat-input::placeholder {
-+  color: var(--text-color-deemphasized);
++  color: color-mix(in srgb, var(--ns-muted-fg) 70%, transparent);
 +}
 +
 +#composer-actions {
 +  align-items: center;
 +  display: flex;
 +  flex-wrap: nowrap;
-+  gap: var(--space-small);
++  gap: 8px;
 +  justify-content: space-between;
-+  min-height: 30px;
++  min-height: 28px;
 +}
 +
 +.composer-group {
 +  align-items: center;
 +  display: flex;
-+  gap: 6px;
++  gap: 4px;
 +  min-width: 0;
 +}
 +
@@ -1969,27 +2063,32 @@ index 00000000..c50fab8a
 +  background: transparent;
 +  border: none;
 +  border-radius: 999px;
-+  color: var(--text-color-deemphasized);
++  color: var(--ns-muted-fg);
 +  cursor: pointer;
 +  display: inline-flex;
-+  flex: 0 0 30px;
-+  height: 30px;
++  flex: 0 0 28px;
++  height: 28px;
 +  justify-content: center;
-+  min-width: 30px;
++  min-width: 28px;
 +  transition:
-+    background-color 0.12s var(--ns-ease),
-+    color 0.12s var(--ns-ease);
-+  width: 30px;
++    background-color 0.15s var(--ns-ease),
++    color 0.15s var(--ns-ease);
++  width: 28px;
 +}
 +
 +.icon-button:hover {
-+  background-color: var(--button-background-color-ghost-hover);
-+  color: var(--text-color);
++  background-color: var(--ns-accent);
++  color: var(--ns-fg);
 +}
 +
 +.icon-button.is-active {
-+  background-color: var(--button-background-color-ghost-hover);
-+  color: var(--text-color);
++  background-color: var(--ns-accent);
++  color: var(--ns-fg);
++}
++
++.icon-button svg {
++  height: 16px;
++  width: 16px;
 +}
 +
 +.provider-pill {
@@ -1997,62 +2096,55 @@ index 00000000..c50fab8a
 +  appearance: none;
 +  background-color: transparent;
 +  background-image: url("chrome://global/skin/icons/arrow-down.svg");
-+  background-position: right 4px center;
++  background-position: right 6px center;
 +  background-repeat: no-repeat;
 +  background-size: 12px;
 +  border: none;
 +  border-radius: 999px;
-+  color: var(--text-color-deemphasized);
++  color: var(--ns-muted-fg);
 +  cursor: pointer;
 +  fill: currentColor;
 +  flex: 0 0 auto;
-+  font-size: 12.5px;
-+  font-weight: 500;
-+  height: 30px;
-+  min-width: 84px;
-+  max-width: 132px;
++  font-size: 14px;
++  font-weight: 400;
++  height: 28px;
++  min-width: 90px;
++  max-width: 150px;
 +  overflow: hidden;
-+  padding: 0 22px 0 10px;
++  padding: 0 22px 0 8px;
 +  text-overflow: ellipsis;
 +  transition:
-+    background-color 0.12s var(--ns-ease),
-+    color 0.12s var(--ns-ease);
++    background-color 0.15s var(--ns-ease),
++    color 0.15s var(--ns-ease);
 +  white-space: nowrap;
 +}
 +
 +.provider-pill:hover {
-+  background-color: var(--button-background-color-ghost-hover);
-+  color: var(--text-color);
++  background-color: var(--ns-accent);
++  color: var(--ns-fg);
 +}
 +
 +.send-button {
 +  align-items: center;
-+  background-color: var(--button-background-color-primary, AccentColor);
++  background-color: var(--ns-primary);
 +  border: none;
 +  border-radius: 999px;
-+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
-+  color: var(--button-text-color-primary, AccentColorText);
++  color: var(--ns-primary-fg);
 +  cursor: pointer;
 +  display: inline-flex;
-+  flex: 0 0 30px;
-+  height: 30px;
++  flex: 0 0 28px;
++  height: 28px;
 +  justify-content: center;
-+  min-width: 30px;
-+  transition:
-+    filter 0.12s var(--ns-ease),
-+    transform 0.12s var(--ns-ease);
-+  width: 30px;
++  min-width: 28px;
++  transition: background-color 0.15s var(--ns-ease);
++  width: 28px;
 +}
 +
 +.send-button:hover:not(:disabled) {
-+  filter: brightness(1.07);
-+  transform: translateY(-1px);
++  background-color: color-mix(in srgb, var(--ns-primary) 90%, transparent);
 +}
 +
-+.send-button:active:not(:disabled) {
-+  transform: translateY(0);
-+}
-+
++.send-button svg,
 +.send-button .icon {
 +  height: 16px;
 +  width: 16px;
@@ -2076,7 +2168,7 @@ index 00000000..c50fab8a
 +}
 +
 +#settings {
-+  background-color: var(--sidebar-background-color);
++  background-color: var(--ns-bg);
 +  display: flex;
 +  flex-direction: column;
 +  inset: 0;
@@ -2090,7 +2182,7 @@ index 00000000..c50fab8a
 +
 +.settings-header {
 +  align-items: center;
-+  border-bottom: 1px solid var(--border-color);
++  border-bottom: 1px solid var(--ns-border);
 +  display: flex;
 +  gap: var(--space-small);
 +  padding: var(--space-small) var(--space-large);
@@ -2128,15 +2220,15 @@ index 00000000..c50fab8a
 +}
 +
 +.settings-help {
-+  color: var(--text-color-deemphasized);
++  color: var(--ns-muted-fg);
 +  font-size: 12px;
 +  margin: 0;
 +}
 +
 +.settings-footer {
 +  align-items: center;
-+  background-color: var(--sidebar-background-color);
-+  border-top: 1px solid var(--border-color);
++  background-color: var(--ns-bg);
++  border-top: 1px solid var(--ns-border);
 +  display: flex;
 +  flex-wrap: wrap;
 +  gap: var(--space-small);
@@ -2144,16 +2236,16 @@ index 00000000..c50fab8a
 +}
 +
 +.settings-status {
-+  color: var(--text-color-deemphasized);
++  color: var(--ns-muted-fg);
 +  font-size: 12px;
 +  margin-inline-start: auto;
 +}
 diff --git a/browser/components/nullsec/sidebar.html b/browser/components/nullsec/sidebar.html
 new file mode 100644
-index 00000000..1565f944
+index 00000000..e820e3ed
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.html
-@@ -0,0 +1,287 @@
+@@ -0,0 +1,280 @@
 +<!-- This Source Code Form is subject to the terms of the Mozilla Public
 +   - License, v. 2.0. If a copy of the MPL was not distributed with this
 +   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
@@ -2218,34 +2310,42 @@ index 00000000..1565f944
 +        alt=""
 +      />
 +      <span id="header-title">NullSec</span>
-+      <moz-button
++      <button
 +        id="header-reports"
-+        type="icon ghost"
-+        iconsrc="chrome://global/skin/icons/edit.svg"
-+        aria-label="Generate report"
++        class="ns-icon-btn"
++        type="button"
 +        title="Generate report"
-+      ></moz-button>
-+      <moz-button
++        aria-label="Generate report"
++      >
++        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>
++      </button>
++      <button
 +        id="header-traffic"
-+        type="icon ghost"
-+        iconsrc="chrome://global/skin/icons/developer.svg"
-+        aria-label="Traffic"
++        class="ns-icon-btn"
++        type="button"
 +        title="Traffic"
-+      ></moz-button>
-+      <moz-button
++        aria-label="Traffic"
++      >
++        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
++      </button>
++      <button
 +        id="header-settings"
-+        type="icon ghost"
-+        iconsrc="chrome://global/skin/icons/settings.svg"
-+        aria-label="Settings"
++        class="ns-icon-btn"
++        type="button"
 +        title="Settings"
-+      ></moz-button>
-+      <moz-button
++        aria-label="Settings"
++      >
++        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
++      </button>
++      <button
 +        id="header-close"
-+        type="icon ghost"
-+        iconsrc="chrome://global/skin/icons/close.svg"
-+        aria-label="Close sidebar"
++        class="ns-icon-btn"
++        type="button"
 +        title="Close sidebar"
-+      ></moz-button>
++        aria-label="Close sidebar"
++      >
++        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
++      </button>
 +    </div>
 +
 +    <div id="thread-wrap">
@@ -2291,22 +2391,14 @@ index 00000000..1565f944
 +        hidden
 +        aria-label="Scroll to bottom"
 +      >
-+        <img
-+          class="icon icon-12"
-+          src="chrome://global/skin/icons/arrow-down.svg"
-+          alt=""
-+        />
++        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
 +      </button>
 +    </div>
 +
 +    <div id="composer">
 +      <div id="composer-shell">
 +        <div id="composer-context" class="composer-context" hidden>
-+          <img
-+            class="icon icon-12"
-+            src="chrome://global/skin/icons/link.svg"
-+            alt=""
-+          />
++          <svg class="context-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
 +          <span id="composer-context-text" class="composer-context-text"></span>
 +        </div>
 +        <textarea
@@ -2323,11 +2415,7 @@ index 00000000..1565f944
 +              title="Include page content"
 +              aria-label="Include page content"
 +            >
-+              <img
-+                class="icon"
-+                src="chrome://global/skin/icons/link.svg"
-+                alt=""
-+              />
++              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
 +            </button>
 +            <select
 +              id="composer-provider"
@@ -2347,19 +2435,16 @@ index 00000000..1565f944
 +              hidden
 +              aria-label="Stop"
 +            >
-+              <span class="stop-square"></span>
++              <svg class="stop-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>
 +            </button>
 +            <button
 +              id="chat-send"
 +              class="send-button"
 +              type="button"
-+              aria-label="Send"
++              aria-label="Send message"
++              title="Send message"
 +            >
-+              <img
-+                class="icon"
-+                src="chrome://global/skin/icons/arrow-up.svg"
-+                alt=""
-+              />
++              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
 +            </button>
 +          </div>
 +        </div>
@@ -2443,10 +2528,10 @@ index 00000000..1565f944
 +</html>
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..1b3e90fd
+index 00000000..b31f8971
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
-@@ -0,0 +1,2252 @@
+@@ -0,0 +1,2290 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -3059,10 +3144,43 @@ index 00000000..1b3e90fd
 +  return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(2)}s`;
 +}
 +
++const NS_ICON = {
++  loader:
++    '<path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/>',
++  check: '<path d="M20 6 9 17l-5-5"/>',
++  chevronDown: '<path d="m6 9 6 6 6-6"/>',
++  copy: '<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
++  refresh:
++    '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
++  download:
++    '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
++};
++
++function svgIcon(name, className = "ns-svg") {
++  const span = document.createElement("span");
++  span.className = className;
++  span.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NS_ICON[name] || ""}</svg>`;
++  if (name === "loader") {
++    span.firstChild.classList.add("spin");
++  }
++  return span;
++}
++
++function chevronElement() {
++  return svgIcon("chevronDown", "ns-svg chevron");
++}
++
 +function dotsElement() {
 +  const dots = document.createElement("span");
 +  dots.className = "dots";
-+  dots.innerHTML = "<i></i><i></i><i></i>";
++  for (let row = 0; row < 5; row++) {
++    for (let col = 0; col < 5; col++) {
++      const dot = document.createElement("i");
++      const ring = Math.max(Math.abs(row - 2), Math.abs(col - 2));
++      dot.style.animationDelay = `${-ring * 0.18}s`;
++      dots.appendChild(dot);
++    }
++  }
 +  return dots;
 +}
 +
@@ -3189,6 +3307,7 @@ index 00000000..1b3e90fd
 +  let reasoning = null;
 +  let reasoningBody = null;
 +  let reasoningLabel = null;
++  let reasoningSpinner = null;
 +  if (withReasoning) {
 +    reasoning = document.createElement("details");
 +    reasoning.className = "reasoning";
@@ -3197,11 +3316,8 @@ index 00000000..1b3e90fd
 +    reasoningLabel = document.createElement("span");
 +    reasoningLabel.className = "reasoning-label";
 +    reasoningLabel.textContent = "Thinking…";
-+    const chevron = document.createElement("img");
-+    chevron.className = "icon icon-12 chevron";
-+    chevron.src = "chrome://global/skin/icons/arrow-down.svg";
-+    chevron.alt = "";
-+    summary.append(dotsElement(), reasoningLabel, chevron);
++    reasoningSpinner = svgIcon("loader");
++    summary.append(reasoningSpinner, reasoningLabel, chevronElement());
 +    reasoningBody = document.createElement("div");
 +    reasoningBody.className = "reasoning-body walkthrough";
 +    reasoning.append(summary, reasoningBody);
@@ -3229,6 +3345,7 @@ index 00000000..1b3e90fd
 +    reasoning,
 +    reasoningBody,
 +    reasoningLabel,
++    reasoningSpinner,
 +    statusTimer: null,
 +    currentStep: null,
 +    timing: "",
@@ -3273,15 +3390,11 @@ index 00000000..1b3e90fd
 +  num.textContent = String(n);
 +  const icon = document.createElement("span");
 +  icon.className = "walk-icon";
-+  icon.append(dotsElement());
++  icon.append(svgIcon("loader"));
 +  const label = document.createElement("span");
 +  label.className = "walk-title";
 +  label.textContent = title;
-+  const chevron = document.createElement("img");
-+  chevron.className = "icon icon-12 chevron";
-+  chevron.src = "chrome://global/skin/icons/arrow-down.svg";
-+  chevron.alt = "";
-+  head.append(num, icon, label, chevron);
++  head.append(num, icon, label, chevronElement());
 +  const detail = document.createElement("div");
 +  detail.className = "walk-detail";
 +  el.append(head, detail);
@@ -3346,11 +3459,7 @@ index 00000000..1b3e90fd
 +    return;
 +  }
 +  step.el.dataset.state = "done";
-+  const check = document.createElement("img");
-+  check.className = "icon icon-12";
-+  check.src = "chrome://global/skin/icons/check.svg";
-+  check.alt = "";
-+  step.icon.replaceChildren(check);
++  step.icon.replaceChildren(svgIcon("check"));
 +  step.label.textContent = liveActionLabel(stepRecord.action || {}, page);
 +  const detail = step.detail;
 +  detail.replaceChildren();
@@ -3379,13 +3488,9 @@ index 00000000..1b3e90fd
 +  if (!view.reasoning) {
 +    return;
 +  }
-+  const dots = view.reasoning.querySelector("summary .dots");
-+  if (dots) {
-+    const check = document.createElement("img");
-+    check.className = "icon icon-12";
-+    check.src = "chrome://global/skin/icons/check.svg";
-+    check.alt = "";
-+    dots.replaceWith(check);
++  if (view.reasoningSpinner) {
++    view.reasoningSpinner.replaceWith(svgIcon("check"));
++    view.reasoningSpinner = null;
 +  }
 +  if (!count) {
 +    view.reasoning.hidden = true;
@@ -3402,10 +3507,26 @@ index 00000000..1b3e90fd
 +function actionButton(label, onClick) {
 +  const button = document.createElement("button");
 +  button.type = "button";
-+  button.className = "action-button";
++  button.className = "text-button";
 +  button.textContent = label;
 +  button.addEventListener("click", onClick);
 +  return button;
++}
++
++function iconAction(name, label, onClick) {
++  const button = document.createElement("button");
++  button.type = "button";
++  button.className = "action-button";
++  button.title = label;
++  button.setAttribute("aria-label", label);
++  button.appendChild(svgIcon(name));
++  button.addEventListener("click", onClick);
++  return button;
++}
++
++function flashIcon(button, name, restore, ms = 1200) {
++  button.replaceChildren(svgIcon(name));
++  setTimeout(() => button.replaceChildren(svgIcon(restore)), ms);
 +}
 +
 +function attachAssistantActions(view, { text, allowRegenerate = true } = {}) {
@@ -3414,14 +3535,13 @@ index 00000000..1b3e90fd
 +  }
 +  const actions = document.createElement("div");
 +  actions.className = "assistant-actions";
-+  const copy = actionButton("Copy", () => {
++  const copy = iconAction("copy", "Copy", () => {
 +    copyText(text || view.body.innerText || "");
-+    copy.textContent = "Copied";
-+    setTimeout(() => (copy.textContent = "Copy"), 1200);
++    flashIcon(copy, "check", "copy");
 +  });
 +  actions.appendChild(copy);
 +  if (allowRegenerate) {
-+    const retry = actionButton("Regenerate", () => {
++    const retry = iconAction("refresh", "Regenerate", () => {
 +      const last = state.session.objectives.at(-1);
 +      if (last) {
 +        sendChat(last);
@@ -3429,21 +3549,24 @@ index 00000000..1b3e90fd
 +    });
 +    actions.appendChild(retry);
 +  }
-+  const exportButton = actionButton("Export", async () => {
-+    try {
-+      const path = PathUtils.join(
-+        REPORT_DIR(),
-+        `nullsec-message-${Date.now()}.md`
-+      );
-+      await IOUtils.makeDirectory(REPORT_DIR(), { ignoreExisting: true });
-+      await IOUtils.writeUTF8(path, text || view.body.innerText || "");
-+      exportButton.textContent = "Saved";
-+      exportButton.title = path;
-+      setTimeout(() => (exportButton.textContent = "Export"), 1500);
-+    } catch {
-+      exportButton.textContent = "Failed";
++  const exportButton = iconAction(
++    "download",
++    "Export as Markdown",
++    async () => {
++      try {
++        const path = PathUtils.join(
++          REPORT_DIR(),
++          `nullsec-message-${Date.now()}.md`
++        );
++        await IOUtils.makeDirectory(REPORT_DIR(), { ignoreExisting: true });
++        await IOUtils.writeUTF8(path, text || view.body.innerText || "");
++        exportButton.title = path;
++        flashIcon(exportButton, "check", "download", 1500);
++      } catch {
++        exportButton.title = "Export failed";
++      }
 +    }
-+  });
++  );
 +  actions.appendChild(exportButton);
 +  if (view.timing) {
 +    const timing = document.createElement("span");
