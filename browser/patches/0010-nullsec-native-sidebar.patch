@@ -240,10 +240,10 @@ index 7c5e6323..14c7662c 100644
      "pagedata",
 diff --git a/browser/components/nullsec/NullSecModels.sys.mjs b/browser/components/nullsec/NullSecModels.sys.mjs
 new file mode 100644
-index 00000000..1e37c6ee
+index 00000000..a2ea04ce
 --- /dev/null
 +++ b/browser/components/nullsec/NullSecModels.sys.mjs
-@@ -0,0 +1,245 @@
+@@ -0,0 +1,319 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -251,13 +251,13 @@ index 00000000..1e37c6ee
 +/**
 + * Provider and model catalog for the NullSec AI sidebar.
 + *
-+ * The shape mirrors the opencode model picker: providers are grouped into
-+ * "Popular" and "Other", may carry a badge, and expose a list of selectable
-+ * models. `api` selects the request/response dialect ("openai" compatible or
-+ * "anthropic"). `needsKey` marks providers that work without an API key
-+ * (local runtimes). `local` marks providers whose traffic never leaves the
-+ * machine, which is what keeps a session truly anonymous.
++ * Built-in providers cover the common OpenAI-compatible endpoints and
++ * Anthropic. Users can connect more providers by entering an API key, or add
++ * fully custom OpenAI-compatible providers (with their own models and headers)
++ * which are persisted under `browser.nullsec.ai.customProviders`.
 + */
++
++const CUSTOM_PREF = "browser.nullsec.ai.customProviders";
 +
 +export const PROVIDER_GROUPS = {
 +  popular: "Popular",
@@ -265,39 +265,6 @@ index 00000000..1e37c6ee
 +};
 +
 +export const PROVIDERS = [
-+  {
-+    id: "opencode",
-+    name: "OpenCode",
-+    group: "popular",
-+    description: "Reliable optimized models",
-+    badge: "Recommended",
-+    api: "openai",
-+    baseurl: "https://opencode.ai/zen/v1",
-+    keyLabel: "OpenCode API key",
-+    needsKey: true,
-+    models: [
-+      { id: "gpt-6-astra", name: "GPT-6 Astra" },
-+      { id: "gpt-6.1-sol", name: "GPT-6.1 Sol" },
-+      { id: "kimi-k3.1-pro", name: "Kimi K3.1 Pro" },
-+      { id: "qwen3.8-max", name: "Qwen3.8 Max" },
-+    ],
-+  },
-+  {
-+    id: "opencode-go",
-+    name: "OpenCode Go",
-+    group: "popular",
-+    description: "Low cost subscription for everyone",
-+    badge: "Recommended",
-+    api: "openai",
-+    baseurl: "https://opencode.ai/zen/v1",
-+    keyLabel: "OpenCode Go API key",
-+    needsKey: true,
-+    models: [
-+      { id: "gpt-6-astra", name: "GPT-6 Astra" },
-+      { id: "kimi-k3.1-pro", name: "Kimi K3.1 Pro" },
-+      { id: "qwen3.8-max", name: "Qwen3.8 Max" },
-+    ],
-+  },
 +  {
 +    id: "anthropic",
 +    name: "Anthropic",
@@ -340,6 +307,62 @@ index 00000000..1e37c6ee
 +    ],
 +  },
 +  {
++    id: "mistral",
++    name: "Mistral",
++    group: "popular",
++    api: "openai",
++    baseurl: "https://api.mistral.ai/v1",
++    keyLabel: "Mistral API key",
++    needsKey: true,
++    models: [
++      { id: "mistral-large-latest", name: "Mistral Large" },
++      { id: "mistral-small-latest", name: "Mistral Small" },
++      { id: "codestral-latest", name: "Codestral" },
++      { id: "open-mistral-nemo", name: "Mistral Nemo" },
++    ],
++  },
++  {
++    id: "groq",
++    name: "Groq",
++    group: "popular",
++    api: "openai",
++    baseurl: "https://api.groq.com/openai/v1",
++    keyLabel: "Groq API key",
++    needsKey: true,
++    models: [
++      { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B" },
++      { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B" },
++      { id: "qwen-2.5-32b", name: "Qwen 2.5 32B" },
++      { id: "deepseek-r1-distill-llama-70b", name: "DeepSeek R1 70B" },
++    ],
++  },
++  {
++    id: "xai",
++    name: "xAI",
++    group: "popular",
++    api: "openai",
++    baseurl: "https://api.x.ai/v1",
++    keyLabel: "xAI API key",
++    needsKey: true,
++    models: [
++      { id: "grok-2-latest", name: "Grok 2" },
++      { id: "grok-beta", name: "Grok Beta" },
++    ],
++  },
++  {
++    id: "deepseek",
++    name: "DeepSeek",
++    group: "popular",
++    api: "openai",
++    baseurl: "https://api.deepseek.com/v1",
++    keyLabel: "DeepSeek API key",
++    needsKey: true,
++    models: [
++      { id: "deepseek-chat", name: "DeepSeek Chat" },
++      { id: "deepseek-reasoner", name: "DeepSeek Reasoner" },
++    ],
++  },
++  {
 +    id: "openrouter",
 +    name: "OpenRouter",
 +    group: "popular",
@@ -354,30 +377,42 @@ index 00000000..1e37c6ee
 +    ],
 +  },
 +  {
-+    id: "vercel",
-+    name: "Vercel AI Gateway",
++    id: "together",
++    name: "Together AI",
 +    group: "popular",
 +    api: "openai",
-+    baseurl: "https://ai-gateway.vercel.sh/v1",
-+    keyLabel: "Vercel AI Gateway key",
++    baseurl: "https://api.together.xyz/v1",
++    keyLabel: "Together API key",
 +    needsKey: true,
 +    models: [
-+      { id: "openai/gpt-4o-mini", name: "GPT-4o mini" },
-+      { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet" },
++      { id: "meta-llama/Llama-3.3-70B-Instruct-Turbo", name: "Llama 3.3 70B" },
++      { id: "Qwen/Qwen2.5-72B-Instruct-Turbo", name: "Qwen 2.5 72B" },
 +    ],
 +  },
 +  {
-+    id: "compatible",
-+    name: "Custom OpenAI-compatible provider",
++    id: "tokenharbor",
++    name: "Token Harbor",
 +    group: "other",
-+    description: "Ollama, LM Studio, vLLM, llama.cpp and friends",
-+    badge: "Custom",
++    description: "Aggregated frontier models",
 +    api: "openai",
-+    baseurl: "http://localhost:11434/v1",
-+    keyLabel: "API key (optional)",
-+    needsKey: false,
-+    local: true,
-+    models: [{ id: "llama3.1", name: "llama3.1" }],
++    baseurl: "https://api.tokenharbor.ai/v1",
++    keyLabel: "Token Harbor API key",
++    needsKey: true,
++    models: [
++      { id: "deepseek-v4.1-flash", name: "DeepSeek V4.1 Flash (Free)" },
++      { id: "deepseek-v4.1", name: "DeepSeek V4.1" },
++      { id: "qwen3.8-max", name: "Qwen3.8 Max" },
++    ],
++  },
++  {
++    id: "muse",
++    name: "Muse",
++    group: "other",
++    api: "openai",
++    baseurl: "https://api.muse.ai/v1",
++    keyLabel: "Muse API key",
++    needsKey: true,
++    models: [{ id: "muse-1", name: "Muse 1" }],
 +  },
 +  {
 +    id: "302ai",
@@ -393,19 +428,70 @@ index 00000000..1e37c6ee
 +    ],
 +  },
 +  {
-+    id: "50x",
-+    name: "50X",
++    id: "compatible",
++    name: "Custom OpenAI-compatible provider",
 +    group: "other",
++    description: "Ollama, LM Studio, vLLM, llama.cpp and friends",
++    badge: "Custom",
 +    api: "openai",
 +    baseurl: "",
-+    keyLabel: "50X API key",
-+    needsKey: true,
++    keyLabel: "API key",
++    needsKey: false,
++    local: true,
 +    models: [],
 +  },
 +];
 +
++function readCustom() {
++  try {
++    const list = JSON.parse(
++      Services.prefs.getStringPref(CUSTOM_PREF, "[]")
++    );
++    return Array.isArray(list) ? list : [];
++  } catch (error) {
++    return [];
++  }
++}
++
++function writeCustom(list) {
++  Services.prefs.setStringPref(CUSTOM_PREF, JSON.stringify(list));
++}
++
++function normalizeCustom(def) {
++  return {
++    id: def.id,
++    name: def.name || def.id,
++    group: "other",
++    description: def.description || "",
++    badge: "Custom",
++    api: "openai",
++    baseurl: def.baseurl || "",
++    keyLabel: def.keyLabel || `${def.name || def.id} API key`,
++    needsKey: false,
++    local: /^https?:\/\/(localhost|127\.0\.0\.1)/i.test(def.baseurl || ""),
++    custom: true,
++    headers: Array.isArray(def.headers) ? def.headers : [],
++    models: Array.isArray(def.models) ? def.models : [],
++  };
++}
++
++export function allProviders() {
++  const custom = readCustom().map(normalizeCustom);
++  return [...PROVIDERS, ...custom];
++}
++
 +export function getProvider(id) {
-+  return PROVIDERS.find(provider => provider.id === id) || null;
++  return allProviders().find(provider => provider.id === id) || null;
++}
++
++export function addCustomProvider(def) {
++  const list = readCustom().filter(item => item.id !== def.id);
++  list.push(def);
++  writeCustom(list);
++}
++
++export function removeCustomProvider(id) {
++  writeCustom(readCustom().filter(item => item.id !== id));
 +}
 +
 +export function getModel(providerId, modelId) {
@@ -449,12 +535,13 @@ index 00000000..1e37c6ee
 +    needsKey: found.provider.needsKey !== false,
 +    local: !!found.provider.local,
 +    keyLabel: found.provider.keyLabel || "API key",
++    headers: found.provider.headers || [],
 +  };
 +}
 +
 +export function allModels() {
 +  const list = [];
-+  for (const provider of PROVIDERS) {
++  for (const provider of allProviders()) {
 +    for (const model of provider.models) {
 +      list.push({
 +        id: makeId(provider.id, model.id),
@@ -471,19 +558,6 @@ index 00000000..1e37c6ee
 +    }
 +  }
 +  return list;
-+}
-+
-+export function findProviderByBaseurl(baseurl) {
-+  if (!baseurl) {
-+    return null;
-+  }
-+  return (
-+    PROVIDERS.find(
-+      provider =>
-+        provider.baseurl &&
-+        baseurl.replace(/\/+$/, "") === provider.baseurl.replace(/\/+$/, "")
-+    ) || null
-+  );
 +}
 +
 +export function defaultModelId() {
@@ -1454,10 +1528,10 @@ index 00000000..c9cd4b19
 +init();
 diff --git a/browser/components/nullsec/sidebar.css b/browser/components/nullsec/sidebar.css
 new file mode 100644
-index 00000000..27faaec3
+index 00000000..d65b5940
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.css
-@@ -0,0 +1,1576 @@
+@@ -0,0 +1,1758 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -3003,24 +3077,28 @@ index 00000000..27faaec3
 +  background-color: color-mix(in srgb, var(--ns-fg) 6%, transparent);
 +}
 +
-+.switch {
++button.ns-switch {
 +  background-color: var(--ns-muted);
 +  border: none;
 +  border-radius: 999px;
 +  cursor: pointer;
 +  flex: 0 0 auto;
 +  height: 16px;
++  max-height: 16px;
++  max-width: 28px;
++  min-height: 0;
++  min-width: 0;
 +  padding: 0;
 +  position: relative;
 +  transition: background-color 0.15s var(--ns-ease);
 +  width: 28px;
 +}
 +
-+.switch.is-on {
++button.ns-switch.is-on {
 +  background-color: var(--ns-link);
 +}
 +
-+.switch-knob {
++.ns-switch-knob {
 +  background-color: #ffffff;
 +  border-radius: 50%;
 +  height: 12px;
@@ -3031,15 +3109,194 @@ index 00000000..27faaec3
 +  width: 12px;
 +}
 +
-+.switch.is-on .switch-knob {
++button.ns-switch.is-on .ns-switch-knob {
 +  transform: translateX(12px);
 +}
++
++.overlay-footer {
++  display: flex;
++  flex: 0 0 auto;
++  gap: 8px;
++  padding: 12px 16px;
++}
++
++.primary-button {
++  align-items: center;
++  background-color: var(--ns-primary);
++  border: none;
++  border-radius: 8px;
++  color: var(--ns-primary-fg);
++  cursor: pointer;
++  display: inline-flex;
++  font: inherit;
++  font-size: 13px;
++  font-weight: 500;
++  height: 34px;
++  justify-content: center;
++  padding: 0 16px;
++  transition: opacity 0.15s var(--ns-ease);
++}
++
++.primary-button:hover {
++  opacity: 0.9;
++}
++
++.connect-body {
++  display: flex;
++  flex: 1;
++  flex-direction: column;
++  gap: 6px;
++  min-height: 0;
++  overflow-y: auto;
++  padding: 8px 16px 16px;
++}
++
++.connect-title-row {
++  align-items: center;
++  display: flex;
++  gap: 10px;
++  margin-bottom: 4px;
++}
++
++.connect-heading {
++  font-size: 15px;
++  font-weight: 600;
++}
++
++.provider-tile-lg {
++  border-radius: 10px;
++  font-size: 15px;
++  height: 34px;
++  width: 34px;
++}
++
++.connect-desc {
++  color: var(--ns-muted-fg);
++  font-size: 13px;
++  line-height: 1.5;
++  margin: 0 0 6px;
++}
++
++.connect-label {
++  color: var(--ns-fg);
++  font-size: 12.5px;
++  font-weight: 500;
++  margin-top: 8px;
++}
++
++.connect-input {
++  background-color: var(--ns-bg);
++  border: 1px solid var(--ns-border);
++  border-radius: 8px;
++  color: var(--ns-fg);
++  font: inherit;
++  font-size: 13px;
++  height: 34px;
++  min-width: 0;
++  padding: 0 10px;
++  width: 100%;
++}
++
++.connect-input::placeholder {
++  color: color-mix(in srgb, var(--ns-muted-fg) 70%, transparent);
++}
++
++.connect-input:focus {
++  border-color: var(--ns-link);
++  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ns-link) 30%, transparent);
++  outline: none;
++}
++
++.connect-error {
++  color: #f87171;
++  font-size: 12px;
++  margin: 6px 0 0;
++}
++
++.field-hint {
++  color: var(--ns-muted-fg);
++  font-size: 11.5px;
++  margin: 0;
++}
++
++.rows {
++  display: flex;
++  flex-direction: column;
++  gap: 6px;
++}
++
++.row {
++  align-items: center;
++  display: flex;
++  gap: 6px;
++}
++
++.row .connect-input {
++  flex: 1;
++}
++
++.row-remove {
++  align-items: center;
++  background: transparent;
++  border: 1px solid var(--ns-border);
++  border-radius: 8px;
++  color: var(--ns-muted-fg);
++  cursor: pointer;
++  display: inline-flex;
++  flex: 0 0 34px;
++  height: 34px;
++  justify-content: center;
++}
++
++.row-remove:hover {
++  background-color: var(--ns-accent);
++  color: var(--ns-fg);
++}
++
++.row-remove svg {
++  flex: none;
++  height: 14px;
++  width: 14px;
++}
++
++.add-row {
++  align-items: center;
++  align-self: flex-start;
++  background: transparent;
++  border: none;
++  border-radius: 8px;
++  color: var(--ns-fg);
++  cursor: pointer;
++  display: inline-flex;
++  font: inherit;
++  font-size: 13px;
++  font-weight: 500;
++  gap: 6px;
++  margin-top: 2px;
++  padding: 6px 8px;
++}
++
++.add-row:hover {
++  background-color: var(--ns-accent);
++}
++
++.add-row svg {
++  flex: none;
++  height: 14px;
++  width: 14px;
++}
++.connect-input[hidden],
++.connect-label[hidden],
++.connect-error[hidden] {
++  display: none;
++}
+\ No newline at end of file
 diff --git a/browser/components/nullsec/sidebar.html b/browser/components/nullsec/sidebar.html
 new file mode 100644
-index 00000000..8ec3b408
+index 00000000..a41dc385
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.html
-@@ -0,0 +1,368 @@
+@@ -0,0 +1,411 @@
 +<!-- This Source Code Form is subject to the terms of the Mozilla Public
 +   - License, v. 2.0. If a copy of the MPL was not distributed with this
 +   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
@@ -3165,9 +3422,9 @@ index 00000000..8ec3b408
 +              >
 +            </div>
 +            <ol class="welcome-steps">
-+              <li>Open <strong>AI settings</strong> and pick a provider.</li>
-+              <li>Paste your API key and press <strong>Save</strong>.</li>
-+              <li>Start a session from the prompt below.</li>
++              <li>Open the model menu and choose a provider.</li>
++              <li>Connect your API key.</li>
++              <li>Start a session from the prompt.</li>
 +            </ol>
 +          </div>
 +          <div id="welcome-ready">
@@ -3320,6 +3577,74 @@ index 00000000..8ec3b408
 +      <div id="connect-list" class="overlay-list"></div>
 +    </section>
 +
++    <section id="connect-detail" class="overlay" hidden>
++      <div class="overlay-header">
++        <button id="connect-detail-back" class="ns-icon-btn" type="button" title="Back" aria-label="Back">
++          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
++        </button>
++        <span id="connect-detail-title" class="overlay-title">Connect</span>
++        <button id="connect-detail-close" class="ns-icon-btn" type="button" title="Close" aria-label="Close">
++          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
++        </button>
++      </div>
++      <div class="connect-body">
++        <div class="connect-title-row">
++          <span id="connect-detail-icon" class="provider-tile provider-tile-lg"></span>
++          <span id="connect-detail-heading" class="connect-heading">Connect</span>
++        </div>
++        <p id="connect-detail-desc" class="connect-desc"></p>
++        <label id="connect-detail-label" class="connect-label" for="connect-detail-key">API key</label>
++        <input id="connect-detail-key" class="connect-input" type="password" placeholder="API key" autocomplete="off" spellcheck="false" />
++        <label id="connect-detail-url-label" class="connect-label" for="connect-detail-url" hidden>Base URL</label>
++        <input id="connect-detail-url" class="connect-input" type="text" placeholder="https://api.provider.com/v1" autocomplete="off" spellcheck="false" hidden />
++        <p id="connect-detail-error" class="connect-error" hidden></p>
++      </div>
++      <div class="overlay-footer">
++        <button id="connect-detail-continue" class="primary-button" type="button">Continue</button>
++      </div>
++    </section>
++
++    <section id="custom-provider" class="overlay" hidden>
++      <div class="overlay-header">
++        <button id="custom-back" class="ns-icon-btn" type="button" title="Back" aria-label="Back">
++          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
++        </button>
++        <span class="overlay-title">Custom provider</span>
++        <button id="custom-close" class="ns-icon-btn" type="button" title="Close" aria-label="Close">
++          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
++        </button>
++      </div>
++      <div class="overlay-list">
++        <p class="connect-desc">Configure an OpenAI-compatible provider.</p>
++        <label class="connect-label" for="custom-id">Provider ID</label>
++        <input id="custom-id" class="connect-input" type="text" placeholder="myprovider" autocomplete="off" spellcheck="false" />
++        <p class="field-hint">Lowercase letters, numbers, hyphens, or underscores</p>
++        <label class="connect-label" for="custom-name">Display name</label>
++        <input id="custom-name" class="connect-input" type="text" placeholder="My AI Provider" autocomplete="off" spellcheck="false" />
++        <label class="connect-label" for="custom-baseurl">Base URL</label>
++        <input id="custom-baseurl" class="connect-input" type="text" placeholder="https://api.myprovider.com/v1" autocomplete="off" spellcheck="false" />
++        <label class="connect-label" for="custom-key">API key</label>
++        <input id="custom-key" class="connect-input" type="password" placeholder="API key" autocomplete="off" spellcheck="false" />
++        <p class="field-hint">Optional. Leave empty if you manage auth via headers.</p>
++        <label class="connect-label">Models</label>
++        <div id="custom-models" class="rows"></div>
++        <button id="custom-add-model" class="add-row" type="button">
++          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
++          <span>Add model</span>
++        </button>
++        <label class="connect-label">Headers (optional)</label>
++        <div id="custom-headers" class="rows"></div>
++        <button id="custom-add-header" class="add-row" type="button">
++          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
++          <span>Add header</span>
++        </button>
++        <p id="custom-error" class="connect-error" hidden></p>
++      </div>
++      <div class="overlay-footer">
++        <button id="custom-submit" class="primary-button" type="button">Submit</button>
++      </div>
++    </section>
++
 +    <section id="settings" hidden>
 +      <div class="settings-header">
 +        <moz-button
@@ -3339,30 +3664,6 @@ index 00000000..8ec3b408
 +        ></moz-button>
 +      </div>
 +      <div class="settings-scroll">
-+        <moz-card heading="Endpoint">
-+          <div class="settings-fields">
-+            <moz-input-text id="ai-baseurl" label="Base URL"></moz-input-text>
-+            <moz-input-text id="ai-model" label="Model"></moz-input-text>
-+            <moz-input-number
-+              id="ai-temp"
-+              label="Temperature"
-+              min="0"
-+              max="2"
-+              step="0.1"
-+            ></moz-input-number>
-+          </div>
-+        </moz-card>
-+        <moz-card heading="Credentials">
-+          <div class="settings-fields">
-+            <moz-input-password
-+              id="ai-key"
-+              label="API key"
-+            ></moz-input-password>
-+            <p class="settings-help">
-+              Stored with OS encryption. Leave blank to keep the current key.
-+            </p>
-+          </div>
-+        </moz-card>
 +        <moz-card heading="Behavior">
 +          <div class="settings-fields">
 +            <moz-toggle
@@ -3402,7 +3703,6 @@ index 00000000..8ec3b408
 +      </div>
 +      <div class="settings-footer">
 +        <moz-button id="ai-save" type="primary">Save</moz-button>
-+        <moz-button id="ai-clear-key" type="ghost">Forget key</moz-button>
 +        <span id="ai-status" class="settings-status"></span>
 +      </div>
 +    </section>
@@ -3410,10 +3710,10 @@ index 00000000..8ec3b408
 +</html>
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..b0696914
+index 00000000..ab1939b3
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
-@@ -0,0 +1,2791 @@
+@@ -0,0 +1,2986 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -3954,6 +4254,7 @@ index 00000000..b0696914
 +    ),
 +    temperature: Services.prefs.getStringPref(PREF.temperature, "0.3"),
 +    system: Services.prefs.getStringPref(PREF.system, ""),
++    headers: entry?.headers || [],
 +  };
 +}
 +
@@ -3980,12 +4281,12 @@ index 00000000..b0696914
 +
 +function renderSetupCard(view) {
 +  view.body.innerHTML = renderMarkdown(
-+    "**Connect an AI provider to get started.**\n\nNullSec needs a model to analyze traffic, find vulnerabilities, and capture flags.\n\n1. Open **AI settings** and choose a provider\n2. Paste your API key and press **Save**\n3. Return here and start a session\n\nYour key is stored locally with OS encryption and is only ever sent to the provider you choose."
++    "**Connect an AI provider to get started.**\n\nNullSec needs a model to analyze traffic, find vulnerabilities, and capture flags.\n\n1. Open the model menu and choose a provider\n2. Connect your API key\n3. Return here and start a session\n\nYour key is stored locally with OS encryption and is only ever sent to the provider you choose."
 +  );
 +  const actions = document.createElement("div");
 +  actions.className = "assistant-actions";
 +  actions.append(
-+    actionButton("Open AI settings", () => showSettings(true)),
++    actionButton("Connect a provider", () => openConnectProvider()),
 +    actionButton("Open Traffic", () =>
 +      getBrowserWindow()?.SidebarController?.show("viewNullSecTrafficSidebar")
 +    )
@@ -4025,11 +4326,11 @@ index 00000000..b0696914
 +function switchEl(pressed, onToggle) {
 +  const button = document.createElement("button");
 +  button.type = "button";
-+  button.className = "switch" + (pressed ? " is-on" : "");
++  button.className = "ns-switch" + (pressed ? " is-on" : "");
 +  button.setAttribute("role", "switch");
 +  button.setAttribute("aria-checked", String(!!pressed));
 +  const knob = document.createElement("span");
-+  knob.className = "switch-knob";
++  knob.className = "ns-switch-knob";
 +  button.appendChild(knob);
 +  button.addEventListener("click", event => {
 +    event.stopPropagation();
@@ -4211,7 +4512,7 @@ index 00000000..b0696914
 +  const disabled = getDisabledSet();
 +  const query = filter.trim().toLowerCase();
 +  for (const groupKey of ["popular", "other"]) {
-+    const providers = NullSecModels.PROVIDERS.filter(
++    const providers = NullSecModels.allProviders().filter(
 +      provider => provider.group === groupKey
 +    );
 +    const matched = providers
@@ -4294,8 +4595,43 @@ index 00000000..b0696914
 +  }
 +}
 +
-+function openConnectProvider() {
++let connectDetailProvider = null;
++
++function closeOverlays() {
++  dom.connect.hidden = true;
++  dom.connectDetail.hidden = true;
++  dom.custom.hidden = true;
 +  dom.manage.hidden = true;
++}
++
++function finishConnect(providerId, baseOverride) {
++  const provider = NullSecModels.getProvider(providerId);
++  if (!provider) {
++    return;
++  }
++  Services.prefs.setStringPref(PREF.provider, providerId);
++  const base = baseOverride || provider.baseurl || "";
++  if (base) {
++    Services.prefs.setStringPref(PREF.baseurl, base);
++  }
++  if (provider.models[0]) {
++    Services.prefs.setStringPref(
++      PREF.modelId,
++      NullSecModels.makeId(providerId, provider.models[0].id)
++    );
++    Services.prefs.setStringPref(PREF.model, provider.models[0].id);
++  }
++  renderModelPill();
++  closeOverlays();
++  updateWelcome();
++}
++
++function openConnectProvider() {
++  closePopovers();
++  showSettings(false);
++  dom.manage.hidden = true;
++  dom.connectDetail.hidden = true;
++  dom.custom.hidden = true;
 +  dom.connect.hidden = false;
 +  dom.connectSearch.value = "";
 +  renderConnectProviders("");
@@ -4307,9 +4643,9 @@ index 00000000..b0696914
 +  list.replaceChildren();
 +  const query = filter.trim().toLowerCase();
 +  for (const groupKey of ["popular", "other"]) {
-+    const providers = NullSecModels.PROVIDERS.filter(
-+      provider => provider.group === groupKey
-+    ).filter(provider => !query || provider.name.toLowerCase().includes(query));
++    const providers = NullSecModels.allProviders()
++      .filter(provider => provider.group === groupKey)
++      .filter(provider => !query || provider.name.toLowerCase().includes(query));
 +    if (!providers.length) {
 +      continue;
 +    }
@@ -4341,33 +4677,186 @@ index 00000000..b0696914
 +        badge.textContent = provider.badge;
 +        row.appendChild(badge);
 +      }
-+      row.addEventListener("click", () => connectProvider(provider.id));
++      row.addEventListener("click", () => {
++        if (provider.id === "compatible") {
++          openCustomProvider();
++        } else {
++          openConnectDetail(provider.id);
++        }
++      });
 +      list.appendChild(row);
 +    }
 +  }
 +}
 +
-+function connectProvider(id) {
-+  const provider = NullSecModels.getProvider(id);
++function openConnectDetail(providerId) {
++  const provider = NullSecModels.getProvider(providerId);
 +  if (!provider) {
 +    return;
 +  }
-+  Services.prefs.setStringPref(PREF.provider, id);
-+  if (provider.baseurl) {
-+    Services.prefs.setStringPref(PREF.baseurl, provider.baseurl);
-+  }
-+  if (provider.models[0]) {
-+    Services.prefs.setStringPref(
-+      PREF.modelId,
-+      NullSecModels.makeId(id, provider.models[0].id)
-+    );
-+    Services.prefs.setStringPref(PREF.model, provider.models[0].id);
-+  }
-+  renderModelPill();
++  connectDetailProvider = provider;
 +  dom.connect.hidden = true;
-+  dom.manage.hidden = true;
-+  updateWelcome();
-+  showSettings(true);
++  dom.custom.hidden = true;
++  dom.connectDetail.hidden = false;
++  dom.connectDetailTitle.textContent = `Connect ${provider.name}`;
++  dom.connectDetailHeading.textContent = provider.name;
++  dom.connectDetailIcon.textContent = (provider.name || "?")
++    .trim()
++    .charAt(0)
++    .toUpperCase();
++  dom.connectDetailDesc.textContent = `Enter your ${provider.name} API key to connect your account and use ${provider.name} models in NullSec.`;
++  dom.connectDetailLabel.textContent =
++    provider.keyLabel || `${provider.name} API key`;
++  dom.connectDetailKey.value = "";
++  dom.connectDetailError.hidden = true;
++  const needsUrl = !provider.baseurl;
++  dom.connectDetailUrl.hidden = !needsUrl;
++  dom.connectDetailUrlLabel.hidden = !needsUrl;
++  dom.connectDetailUrl.value = provider.baseurl || "";
++  dom.connectDetailKey.focus();
++}
++
++async function connectDetailContinue() {
++  const provider = connectDetailProvider;
++  if (!provider) {
++    return;
++  }
++  const key = dom.connectDetailKey.value.trim();
++  const url = dom.connectDetailUrl.hidden
++    ? provider.baseurl
++    : dom.connectDetailUrl.value.trim();
++  if (provider.needsKey && !key) {
++    dom.connectDetailError.textContent = "Enter an API key to continue.";
++    dom.connectDetailError.hidden = false;
++    return;
++  }
++  if (!url) {
++    dom.connectDetailError.textContent = "Enter a Base URL to continue.";
++    dom.connectDetailError.hidden = false;
++    return;
++  }
++  if (key) {
++    const stored = await setKey(provider.id, key);
++    if (!stored) {
++      dom.connectDetailError.textContent =
++        "Could not store the API key securely on this device.";
++      dom.connectDetailError.hidden = false;
++      return;
++    }
++  }
++  finishConnect(provider.id, url);
++}
++
++function rowInput(placeholder, className) {
++  const input = document.createElement("input");
++  input.type = "text";
++  input.className = `connect-input ${className}`;
++  input.placeholder = placeholder;
++  input.autocomplete = "off";
++  input.spellcheck = false;
++  return input;
++}
++
++function rowRemoveButton(row) {
++  const button = document.createElement("button");
++  button.type = "button";
++  button.className = "row-remove";
++  button.setAttribute("aria-label", "Remove");
++  button.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
++  button.addEventListener("click", () => row.remove());
++  return button;
++}
++
++function addCustomModelRow() {
++  const row = document.createElement("div");
++  row.className = "row row-model";
++  row.append(
++    rowInput("model-id", "row-id"),
++    rowInput("Display Name", "row-name"),
++    rowRemoveButton(row)
++  );
++  dom.customModels.appendChild(row);
++}
++
++function addCustomHeaderRow() {
++  const row = document.createElement("div");
++  row.className = "row row-header";
++  row.append(
++    rowInput("Header-Name", "row-hname"),
++    rowInput("value", "row-hvalue"),
++    rowRemoveButton(row)
++  );
++  dom.customHeaders.appendChild(row);
++}
++
++function openCustomProvider() {
++  dom.connect.hidden = true;
++  dom.connectDetail.hidden = true;
++  dom.custom.hidden = false;
++  dom.customId.value = "";
++  dom.customName.value = "";
++  dom.customBaseurl.value = "";
++  dom.customKey.value = "";
++  dom.customError.hidden = true;
++  dom.customModels.replaceChildren();
++  dom.customHeaders.replaceChildren();
++  addCustomModelRow();
++  dom.customId.focus();
++}
++
++async function submitCustomProvider() {
++  const id = dom.customId.value.trim().toLowerCase();
++  const name = dom.customName.value.trim();
++  const baseurl = dom.customBaseurl.value.trim();
++  const fail = message => {
++    dom.customError.textContent = message;
++    dom.customError.hidden = false;
++  };
++  if (!/^[a-z0-9_-]+$/.test(id)) {
++    return fail("Provider ID must be lowercase letters, numbers, hyphens, or underscores.");
++  }
++  if (NullSecModels.PROVIDERS.some(provider => provider.id === id)) {
++    return fail("That provider ID is already in use.");
++  }
++  if (!name) {
++    return fail("Enter a display name.");
++  }
++  if (!/^https?:\/\//i.test(baseurl)) {
++    return fail("Enter a valid Base URL.");
++  }
++  const models = [];
++  for (const row of dom.customModels.querySelectorAll(".row-model")) {
++    const modelId = row.querySelector(".row-id").value.trim();
++    if (modelId) {
++      models.push({
++        id: modelId,
++        name: row.querySelector(".row-name").value.trim() || modelId,
++      });
++    }
++  }
++  const headers = [];
++  for (const row of dom.customHeaders.querySelectorAll(".row-header")) {
++    const headerName = row.querySelector(".row-hname").value.trim();
++    if (headerName) {
++      headers.push({
++        name: headerName,
++        value: row.querySelector(".row-hvalue").value.trim(),
++      });
++    }
++  }
++  NullSecModels.addCustomProvider({
++    id,
++    name,
++    baseurl,
++    keyLabel: `${name} API key`,
++    models,
++    headers,
++  });
++  const key = dom.customKey.value.trim();
++  if (key) {
++    await setKey(id, key);
++  }
++  finishConnect(id, baseurl);
 +}
 +
 +function buildSystemPrompt(agent = false) {
@@ -4432,6 +4921,8 @@ index 00000000..b0696914
 +  if (visible) {
 +    dom.manage.hidden = true;
 +    dom.connect.hidden = true;
++    dom.connectDetail.hidden = true;
++    dom.custom.hidden = true;
 +  }
 +}
 +
@@ -4994,13 +5485,19 @@ index 00000000..b0696914
 +    // Ask OpenAI to disable server-side storage of this request.
 +    body.store = false;
 +  }
++  const headers = {
++    "Content-Type": "application/json",
++    Authorization: `Bearer ${key}`,
++  };
++  for (const header of cfg.headers || []) {
++    if (header?.name) {
++      headers[header.name] = header.value ?? "";
++    }
++  }
 +  const response = await fetch(apiUrl(cfg.baseurl, "/chat/completions"), {
 +    method: "POST",
 +    signal,
-+    headers: {
-+      "Content-Type": "application/json",
-+      Authorization: `Bearer ${key}`,
-+    },
++    headers,
 +    body: JSON.stringify(body),
 +  });
 +  if (!response.ok) {
@@ -5930,15 +6427,7 @@ index 00000000..b0696914
 +
 +function loadSettingsIntoUI() {
 +  const cfg = getProviderConfig();
-+  dom.baseurl.value = cfg.baseurl;
-+  dom.model.value = cfg.model;
-+  dom.temp.value = cfg.temperature;
 +  dom.system.value = cfg.system;
-+  const key = getKey(cfg.provider);
-+  dom.key.value = "";
-+  dom.key.placeholder = key
-+    ? "Stored with OS encryption (enter to replace)"
-+    : "Stored with OS encryption";
 +  dom.autopilot.pressed = getBoolPref(PREF.autopilot, false);
 +  dom.pageContext.pressed = getBoolPref(PREF.pageContext, true);
 +  if (dom.anonymous) {
@@ -5949,43 +6438,16 @@ index 00000000..b0696914
 +  updateContext();
 +}
 +
-+async function saveSettingsFromUI() {
-+  const provider = Services.prefs.getStringPref(PREF.provider, "openai");
-+  const defaults = PROVIDER_DEFAULTS[provider] || PROVIDER_DEFAULTS.openai;
-+  const baseurl = dom.baseurl.value.trim() || defaults.baseurl;
-+  const model = dom.model.value.trim() || defaults.model;
-+  const rawTemp = dom.temp.value;
-+  const parsedTemp = Number(rawTemp);
-+  const temperature =
-+    rawTemp === "" || rawTemp == null || Number.isNaN(parsedTemp)
-+      ? "0.3"
-+      : String(parsedTemp);
-+  const system = dom.system.value.trim();
-+  Services.prefs.setStringPref(PREF.provider, provider);
-+  Services.prefs.setStringPref(PREF.baseurl, baseurl);
-+  Services.prefs.setStringPref(PREF.model, model);
-+  const catalogId = NullSecModels.makeId(provider, model);
-+  if (NullSecModels.findModel(catalogId)) {
-+    Services.prefs.setStringPref(PREF.modelId, catalogId);
-+  }
-+  Services.prefs.setStringPref(PREF.temperature, temperature);
-+  Services.prefs.setStringPref(PREF.system, system);
++function saveSettingsFromUI() {
++  Services.prefs.setStringPref(PREF.system, dom.system.value.trim());
 +  Services.prefs.setBoolPref(PREF.autopilot, dom.autopilot.pressed);
 +  Services.prefs.setBoolPref(PREF.pageContext, dom.pageContext.pressed);
 +  if (dom.anonymous) {
 +    Services.prefs.setBoolPref(PREF.anonymous, dom.anonymous.pressed);
 +  }
-+  let message = "Saved.";
-+  if (dom.key.value) {
-+    const stored = await setKey(provider, dom.key.value);
-+    message = stored
-+      ? "Saved. API key stored with OS encryption."
-+      : "Settings saved, but the API key could not be stored.";
-+    dom.key.value = "";
-+  }
 +  loadSettingsIntoUI();
 +  updateWelcome();
-+  dom.status.textContent = message;
++  dom.status.textContent = "Saved.";
 +}
 +
 +function initChrome() {
@@ -6008,6 +6470,32 @@ index 00000000..b0696914
 +  dom.connectList = $("connect-list");
 +  dom.connectSearch = $("connect-search");
 +  dom.connectClose = $("connect-close");
++  dom.connectDetail = $("connect-detail");
++  dom.connectDetailBack = $("connect-detail-back");
++  dom.connectDetailTitle = $("connect-detail-title");
++  dom.connectDetailClose = $("connect-detail-close");
++  dom.connectDetailIcon = $("connect-detail-icon");
++  dom.connectDetailHeading = $("connect-detail-heading");
++  dom.connectDetailDesc = $("connect-detail-desc");
++  dom.connectDetailLabel = $("connect-detail-label");
++  dom.connectDetailKey = $("connect-detail-key");
++  dom.connectDetailUrlLabel = $("connect-detail-url-label");
++  dom.connectDetailUrl = $("connect-detail-url");
++  dom.connectDetailError = $("connect-detail-error");
++  dom.connectDetailContinue = $("connect-detail-continue");
++  dom.custom = $("custom-provider");
++  dom.customBack = $("custom-back");
++  dom.customClose = $("custom-close");
++  dom.customId = $("custom-id");
++  dom.customName = $("custom-name");
++  dom.customBaseurl = $("custom-baseurl");
++  dom.customKey = $("custom-key");
++  dom.customModels = $("custom-models");
++  dom.customHeaders = $("custom-headers");
++  dom.customAddModel = $("custom-add-model");
++  dom.customAddHeader = $("custom-add-header");
++  dom.customError = $("custom-error");
++  dom.customSubmit = $("custom-submit");
 +  dom.anonymous = $("ai-anonymous");
 +  dom.traffic = $("header-traffic");
 +  dom.settingsButton = $("header-settings");
@@ -6021,16 +6509,11 @@ index 00000000..b0696914
 +  dom.settings = $("settings");
 +  dom.settingsBack = $("settings-back");
 +  dom.settingsClose = $("settings-close");
-+  dom.baseurl = $("ai-baseurl");
-+  dom.model = $("ai-model");
-+  dom.key = $("ai-key");
-+  dom.temp = $("ai-temp");
 +  dom.system = $("ai-system");
 +  dom.autopilot = $("ai-autopilot");
 +  dom.pageContext = $("ai-page-context");
 +  dom.status = $("ai-status");
 +  dom.save = $("ai-save");
-+  dom.clearKey = $("ai-clear-key");
 +  dom.messageContainer = $("thread-viewport");
 +  dom.messages = $("chat-messages");
 +  dom.empty = $("chat-welcome");
@@ -6136,20 +6619,32 @@ index 00000000..b0696914
 +    state.abortController?.abort();
 +  });
 +  dom.report.addEventListener("click", () => generateReport());
-+  dom.welcomeCta?.addEventListener("click", () => showSettings(true));
++  dom.welcomeCta?.addEventListener("click", () => openConnectProvider());
 +  dom.welcomeTraffic?.addEventListener("click", () =>
 +    getBrowserWindow()?.SidebarController?.show("viewNullSecTrafficSidebar")
 +  );
 +  dom.save.addEventListener("click", saveSettingsFromUI);
-+  dom.clearKey.addEventListener("click", async () => {
-+    const provider = Services.prefs.getStringPref(PREF.provider, "openai");
-+    const removed = await setKey(provider, "");
-+    loadSettingsIntoUI();
-+    updateWelcome();
-+    dom.status.textContent = removed
-+      ? "API key removed."
-+      : "Could not remove API key.";
++
++  dom.connectDetailBack.addEventListener("click", openConnectProvider);
++  dom.connectDetailClose.addEventListener("click", closeOverlays);
++  dom.connectDetailContinue.addEventListener("click", connectDetailContinue);
++  dom.connectDetailKey.addEventListener("keydown", event => {
++    if (event.key === "Enter") {
++      event.preventDefault();
++      connectDetailContinue();
++    }
 +  });
++  dom.connectDetailUrl.addEventListener("keydown", event => {
++    if (event.key === "Enter") {
++      event.preventDefault();
++      connectDetailContinue();
++    }
++  });
++  dom.customBack.addEventListener("click", openConnectProvider);
++  dom.customClose.addEventListener("click", closeOverlays);
++  dom.customAddModel.addEventListener("click", addCustomModelRow);
++  dom.customAddHeader.addEventListener("click", addCustomHeaderRow);
++  dom.customSubmit.addEventListener("click", submitCustomProvider);
 +
 +  const win = getBrowserWindow();
 +  if (win?.gBrowser) {
