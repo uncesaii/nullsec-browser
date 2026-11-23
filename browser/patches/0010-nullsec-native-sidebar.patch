@@ -180,10 +180,10 @@ index 2b957018..dd2dee24 100644
      "PageInfoPreviewChild.sys.mjs",
      "PageStyleChild.sys.mjs",
 diff --git a/browser/app/profile/000-mullvad-browser.js b/browser/app/profile/000-mullvad-browser.js
-index 3636c5d0..15c62e96 100644
+index 3636c5d0..d7560f17 100644
 --- a/browser/app/profile/000-mullvad-browser.js
 +++ b/browser/app/profile/000-mullvad-browser.js
-@@ -56,3 +56,17 @@ pref("browser.selectiveSavingMode.enabled", false);
+@@ -56,3 +56,22 @@ pref("browser.selectiveSavingMode.enabled", false);
  #else
  pref("browser.selectiveSavingMode.enabled", true);
  #endif
@@ -201,6 +201,11 @@ index 3636c5d0..15c62e96 100644
 +pref("browser.nullsec.ai.system", "");
 +pref("browser.nullsec.ai.autopilot", false);
 +pref("browser.nullsec.ai.pageContext", true);
++pref("browser.nullsec.ai.modelId", "openai/gpt-4o-mini");
++pref("browser.nullsec.ai.disabled", "");
++pref("browser.nullsec.ai.effort", "max");
++pref("browser.nullsec.ai.mode", "build");
++pref("browser.nullsec.ai.anonymous", true);
 diff --git a/browser/components/DesktopActorRegistry.sys.mjs b/browser/components/DesktopActorRegistry.sys.mjs
 index 7266cae6..83d9dd17 100644
 --- a/browser/components/DesktopActorRegistry.sys.mjs
@@ -234,6 +239,257 @@ index 7c5e6323..14c7662c 100644
      # Exclude newtab component. tor-browser#43886.
      "originattributes",
      "pagedata",
+diff --git a/browser/components/nullsec/NullSecModels.sys.mjs b/browser/components/nullsec/NullSecModels.sys.mjs
+new file mode 100644
+index 00000000..1e37c6ee
+--- /dev/null
++++ b/browser/components/nullsec/NullSecModels.sys.mjs
+@@ -0,0 +1,245 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++/**
++ * Provider and model catalog for the NullSec AI sidebar.
++ *
++ * The shape mirrors the opencode model picker: providers are grouped into
++ * "Popular" and "Other", may carry a badge, and expose a list of selectable
++ * models. `api` selects the request/response dialect ("openai" compatible or
++ * "anthropic"). `needsKey` marks providers that work without an API key
++ * (local runtimes). `local` marks providers whose traffic never leaves the
++ * machine, which is what keeps a session truly anonymous.
++ */
++
++export const PROVIDER_GROUPS = {
++  popular: "Popular",
++  other: "Other",
++};
++
++export const PROVIDERS = [
++  {
++    id: "opencode",
++    name: "OpenCode",
++    group: "popular",
++    description: "Reliable optimized models",
++    badge: "Recommended",
++    api: "openai",
++    baseurl: "https://opencode.ai/zen/v1",
++    keyLabel: "OpenCode API key",
++    needsKey: true,
++    models: [
++      { id: "gpt-6-astra", name: "GPT-6 Astra" },
++      { id: "gpt-6.1-sol", name: "GPT-6.1 Sol" },
++      { id: "kimi-k3.1-pro", name: "Kimi K3.1 Pro" },
++      { id: "qwen3.8-max", name: "Qwen3.8 Max" },
++    ],
++  },
++  {
++    id: "opencode-go",
++    name: "OpenCode Go",
++    group: "popular",
++    description: "Low cost subscription for everyone",
++    badge: "Recommended",
++    api: "openai",
++    baseurl: "https://opencode.ai/zen/v1",
++    keyLabel: "OpenCode Go API key",
++    needsKey: true,
++    models: [
++      { id: "gpt-6-astra", name: "GPT-6 Astra" },
++      { id: "kimi-k3.1-pro", name: "Kimi K3.1 Pro" },
++      { id: "qwen3.8-max", name: "Qwen3.8 Max" },
++    ],
++  },
++  {
++    id: "anthropic",
++    name: "Anthropic",
++    group: "popular",
++    api: "anthropic",
++    baseurl: "https://api.anthropic.com",
++    keyLabel: "Anthropic API key",
++    needsKey: true,
++    models: [
++      { id: "claude-3-5-sonnet-latest", name: "Claude 3.5 Sonnet" },
++      { id: "claude-3-7-sonnet-latest", name: "Claude 3.7 Sonnet" },
++      { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4" },
++    ],
++  },
++  {
++    id: "openai",
++    name: "OpenAI",
++    group: "popular",
++    api: "openai",
++    baseurl: "https://api.openai.com/v1",
++    keyLabel: "OpenAI API key",
++    needsKey: true,
++    models: [
++      { id: "gpt-4o-mini", name: "GPT-4o mini" },
++      { id: "gpt-4o", name: "GPT-4o" },
++      { id: "gpt-4.1", name: "GPT-4.1" },
++    ],
++  },
++  {
++    id: "google",
++    name: "Google",
++    group: "popular",
++    api: "openai",
++    baseurl: "https://generativelanguage.googleapis.com/v1beta/openai",
++    keyLabel: "Google AI API key",
++    needsKey: true,
++    models: [
++      { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" },
++      { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" },
++    ],
++  },
++  {
++    id: "openrouter",
++    name: "OpenRouter",
++    group: "popular",
++    api: "openai",
++    baseurl: "https://openrouter.ai/api/v1",
++    keyLabel: "OpenRouter API key",
++    needsKey: true,
++    models: [
++      { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet" },
++      { id: "openai/gpt-4o-mini", name: "GPT-4o mini" },
++      { id: "meta-llama/llama-3.1-70b-instruct", name: "Llama 3.1 70B" },
++    ],
++  },
++  {
++    id: "vercel",
++    name: "Vercel AI Gateway",
++    group: "popular",
++    api: "openai",
++    baseurl: "https://ai-gateway.vercel.sh/v1",
++    keyLabel: "Vercel AI Gateway key",
++    needsKey: true,
++    models: [
++      { id: "openai/gpt-4o-mini", name: "GPT-4o mini" },
++      { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet" },
++    ],
++  },
++  {
++    id: "compatible",
++    name: "Custom OpenAI-compatible provider",
++    group: "other",
++    description: "Ollama, LM Studio, vLLM, llama.cpp and friends",
++    badge: "Custom",
++    api: "openai",
++    baseurl: "http://localhost:11434/v1",
++    keyLabel: "API key (optional)",
++    needsKey: false,
++    local: true,
++    models: [{ id: "llama3.1", name: "llama3.1" }],
++  },
++  {
++    id: "302ai",
++    name: "302.AI",
++    group: "other",
++    api: "openai",
++    baseurl: "https://api.302.ai/v1",
++    keyLabel: "302.AI API key",
++    needsKey: true,
++    models: [
++      { id: "gpt-4o-mini", name: "GPT-4o mini" },
++      { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet" },
++    ],
++  },
++  {
++    id: "50x",
++    name: "50X",
++    group: "other",
++    api: "openai",
++    baseurl: "",
++    keyLabel: "50X API key",
++    needsKey: true,
++    models: [],
++  },
++];
++
++export function getProvider(id) {
++  return PROVIDERS.find(provider => provider.id === id) || null;
++}
++
++export function getModel(providerId, modelId) {
++  const provider = getProvider(providerId);
++  if (!provider) {
++    return null;
++  }
++  const model = provider.models.find(m => m.id === modelId);
++  return model ? { provider, model } : null;
++}
++
++export function makeId(providerId, modelId) {
++  return `${providerId}/${modelId}`;
++}
++
++export function parseId(id) {
++  const index = String(id || "").indexOf("/");
++  if (index === -1) {
++    return { providerId: id || "", modelId: "" };
++  }
++  return {
++    providerId: id.slice(0, index),
++    modelId: id.slice(index + 1),
++  };
++}
++
++export function findModel(id) {
++  const { providerId, modelId } = parseId(id);
++  const found = getModel(providerId, modelId);
++  if (!found) {
++    return null;
++  }
++  return {
++    id,
++    providerId,
++    providerName: found.provider.name,
++    modelId,
++    modelName: found.model.name,
++    api: found.provider.api,
++    baseurl: found.provider.baseurl,
++    needsKey: found.provider.needsKey !== false,
++    local: !!found.provider.local,
++    keyLabel: found.provider.keyLabel || "API key",
++  };
++}
++
++export function allModels() {
++  const list = [];
++  for (const provider of PROVIDERS) {
++    for (const model of provider.models) {
++      list.push({
++        id: makeId(provider.id, model.id),
++        providerId: provider.id,
++        providerName: provider.name,
++        modelId: model.id,
++        modelName: model.name,
++        api: provider.api,
++        baseurl: provider.baseurl,
++        needsKey: provider.needsKey !== false,
++        local: !!provider.local,
++        keyLabel: provider.keyLabel || "API key",
++      });
++    }
++  }
++  return list;
++}
++
++export function findProviderByBaseurl(baseurl) {
++  if (!baseurl) {
++    return null;
++  }
++  return (
++    PROVIDERS.find(
++      provider =>
++        provider.baseurl &&
++        baseurl.replace(/\/+$/, "") === provider.baseurl.replace(/\/+$/, "")
++    ) || null
++  );
++}
++
++export function defaultModelId() {
++  return makeId("openai", "gpt-4o-mini");
++}
 diff --git a/browser/components/nullsec/NullSecStore.sys.mjs b/browser/components/nullsec/NullSecStore.sys.mjs
 new file mode 100644
 index 00000000..f7370d24
@@ -640,10 +896,10 @@ index 00000000..58f9a772
 +    content/browser/nullsec/nullsec.svg
 diff --git a/browser/components/nullsec/moz.build b/browser/components/nullsec/moz.build
 new file mode 100644
-index 00000000..e686c724
+index 00000000..ed29e16c
 --- /dev/null
 +++ b/browser/components/nullsec/moz.build
-@@ -0,0 +1,20 @@
+@@ -0,0 +1,21 @@
 +# This Source Code Form is subject to the terms of the Mozilla Public
 +# License, v. 2.0. If a copy of the MPL was not distributed with this
 +# file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -652,6 +908,7 @@ index 00000000..e686c724
 +
 +MOZ_SRC_FILES += [
 +    "NullSecStore.sys.mjs",
++    "NullSecModels.sys.mjs",
 +    "Skills.sys.mjs",
 +    "SkillsCatalog.sys.mjs",
 +    "SkillsMitreEnterprise.sys.mjs",
@@ -1198,10 +1455,10 @@ index 00000000..c9cd4b19
 +init();
 diff --git a/browser/components/nullsec/sidebar.css b/browser/components/nullsec/sidebar.css
 new file mode 100644
-index 00000000..1ab88685
+index 00000000..94f4f1ee
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.css
-@@ -0,0 +1,1038 @@
+@@ -0,0 +1,1584 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -1904,6 +2161,7 @@ index 00000000..1ab88685
 +}
 +
 +.ns-svg svg {
++  flex: none;
 +  height: 16px;
 +  width: 16px;
 +}
@@ -1915,6 +2173,7 @@ index 00000000..1ab88685
 +}
 +
 +.stop-icon {
++  flex: none;
 +  height: 12px;
 +  width: 12px;
 +}
@@ -1961,6 +2220,7 @@ index 00000000..1ab88685
 +}
 +
 +.scroll-bottom svg {
++  flex: none;
 +  height: 16px;
 +  width: 16px;
 +}
@@ -2082,11 +2342,15 @@ index 00000000..1ab88685
 +}
 +
 +.icon-button.is-active {
-+  background-color: var(--ns-accent);
 +  color: var(--ns-fg);
 +}
 +
++.icon-button.is-active:hover {
++  background-color: var(--ns-accent);
++}
++
 +.icon-button svg {
++  flex: none;
 +  height: 16px;
 +  width: 16px;
 +}
@@ -2146,6 +2410,7 @@ index 00000000..1ab88685
 +
 +.send-button svg,
 +.send-button .icon {
++  flex: none;
 +  height: 16px;
 +  width: 16px;
 +}
@@ -2240,12 +2505,550 @@ index 00000000..1ab88685
 +  font-size: 12px;
 +  margin-inline-start: auto;
 +}
++
++#composer {
++  position: relative;
++}
++
++#composer-actions {
++  gap: 4px;
++  justify-content: flex-start;
++}
++
++.composer-group-model {
++  flex: 0 1 auto;
++  gap: 3px;
++  min-width: 0;
++}
++
++.composer-group-send {
++  flex: 0 0 auto;
++  margin-inline-start: auto;
++}
++
++.composer-pill {
++  align-items: center;
++  background: transparent;
++  border: none;
++  border-radius: 999px;
++  color: var(--ns-muted-fg);
++  cursor: pointer;
++  display: inline-flex;
++  flex: 0 1 auto;
++  font: inherit;
++  font-size: 12.5px;
++  gap: 4px;
++  height: 28px;
++  min-width: 0;
++  padding: 0 6px;
++  transition:
++    background-color 0.15s var(--ns-ease),
++    color 0.15s var(--ns-ease);
++}
++
++.composer-pill:hover {
++  background-color: var(--ns-accent);
++  color: var(--ns-fg);
++}
++
++.composer-pill .pill-icon {
++  flex: none;
++  height: 14px;
++  width: 14px;
++}
++
++.composer-pill .pill-chevron {
++  flex: none;
++  height: 11px;
++  opacity: 0.7;
++  width: 11px;
++}
++
++.composer-pill-model {
++  color: var(--ns-fg);
++  font-weight: 500;
++}
++
++.composer-pill.is-unset {
++  color: var(--ns-link);
++}
++
++#mode-pill,
++#effort-pill {
++  flex: 0 0 auto;
++}
++
++#model-pill {
++  flex: 0 1 auto;
++  min-width: 0;
++}
++
++@media (max-width: 400px) {
++  #mode-pill-label {
++    display: none;
++  }
++}
++
++#model-pill-label {
++  min-width: 0;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++#mode-pill-label,
++#effort-pill-label {
++  flex: 0 0 auto;
++  white-space: nowrap;
++}
++
++.popover {
++  background-color: var(--ns-bg);
++  border: 1px solid var(--ns-border);
++  border-radius: 12px;
++  bottom: calc(100% - 2px);
++  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
++  display: flex;
++  flex-direction: column;
++  left: 16px;
++  max-height: 340px;
++  overflow: hidden;
++  position: absolute;
++  right: 16px;
++  z-index: 40;
++}
++
++.popover[hidden] {
++  display: none;
++}
++
++.popover-sm {
++  left: 16px;
++  max-width: 280px;
++  min-width: 240px;
++  right: auto;
++}
++
++.popover-search {
++  align-items: center;
++  border-bottom: 1px solid var(--ns-border);
++  display: flex;
++  flex: 0 0 auto;
++  gap: 8px;
++  padding: 8px 10px;
++}
++
++.popover-search-icon {
++  color: var(--ns-muted-fg);
++  flex: none;
++  height: 16px;
++  width: 16px;
++}
++
++.popover-search input {
++  background: transparent;
++  border: none;
++  color: var(--ns-fg);
++  flex: 1;
++  font: inherit;
++  font-size: 14px;
++  min-width: 0;
++  outline: none;
++}
++
++.popover-list {
++  display: flex;
++  flex-direction: column;
++  gap: 1px;
++  min-height: 0;
++  overflow-x: hidden;
++  overflow-y: auto;
++  padding: 4px;
++  scrollbar-color: var(--ns-border) transparent;
++  scrollbar-width: thin;
++}
++
++.popover-group-label {
++  color: var(--ns-muted-fg);
++  font-size: 11px;
++  font-weight: 600;
++  letter-spacing: 0.04em;
++  padding: 8px 8px 2px;
++}
++
++.popover-row {
++  align-items: center;
++  background: transparent;
++  border: none;
++  border-radius: 8px;
++  color: var(--ns-fg);
++  cursor: pointer;
++  display: flex;
++  font: inherit;
++  font-size: 14px;
++  gap: 8px;
++  padding: 7px 8px;
++  text-align: left;
++  width: 100%;
++}
++
++.popover-row:hover {
++  background-color: var(--ns-accent);
++}
++
++.popover-row-name {
++  flex: 1;
++  min-width: 0;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.popover-tag {
++  border: 1px solid var(--ns-border);
++  border-radius: 6px;
++  color: var(--ns-muted-fg);
++  flex: none;
++  font-size: 10px;
++  padding: 0 5px;
++}
++
++.popover-row-check {
++  flex: none;
++  height: 16px;
++  opacity: 0;
++  width: 16px;
++}
++
++.popover-row.is-selected .popover-row-check {
++  opacity: 1;
++}
++
++.popover-empty {
++  color: var(--ns-muted-fg);
++  font-size: 13px;
++  padding: 18px 10px;
++  text-align: center;
++}
++
++.popover-footer {
++  align-items: center;
++  background: transparent;
++  border: none;
++  border-top: 1px solid var(--ns-border);
++  color: var(--ns-fg);
++  cursor: pointer;
++  display: flex;
++  flex: 0 0 auto;
++  font: inherit;
++  font-size: 14px;
++  gap: 8px;
++  padding: 9px 10px;
++  text-align: left;
++}
++
++.popover-footer:hover {
++  background-color: var(--ns-accent);
++}
++
++.popover-footer svg {
++  color: var(--ns-muted-fg);
++  flex: none;
++  height: 16px;
++  width: 16px;
++}
++
++.popover-option {
++  align-items: center;
++  background: transparent;
++  border: none;
++  border-radius: 8px;
++  color: var(--ns-fg);
++  cursor: pointer;
++  display: flex;
++  font: inherit;
++  gap: 8px;
++  padding: 8px 10px;
++  text-align: left;
++  width: 100%;
++}
++
++.popover-option:hover {
++  background-color: var(--ns-accent);
++}
++
++.popover-option-main {
++  display: flex;
++  flex: 1;
++  flex-direction: column;
++  gap: 1px;
++  min-width: 0;
++}
++
++.popover-option-title {
++  font-size: 14px;
++}
++
++.popover-option-sub {
++  color: var(--ns-muted-fg);
++  font-size: 12px;
++}
++
++.popover-check {
++  flex: none;
++  height: 16px;
++  margin-inline-start: auto;
++  opacity: 0;
++  width: 16px;
++}
++
++.popover-option.is-selected .popover-check {
++  opacity: 1;
++}
++
++.overlay {
++  background-color: var(--ns-bg);
++  display: flex;
++  flex-direction: column;
++  inset: 0;
++  position: absolute;
++  z-index: 30;
++}
++
++.overlay[hidden] {
++  display: none;
++}
++
++.overlay-header {
++  align-items: center;
++  display: flex;
++  flex: 0 0 auto;
++  gap: 8px;
++  padding: 12px 16px;
++}
++
++.overlay-title {
++  flex: 1;
++  font-size: 15px;
++  font-weight: 600;
++  letter-spacing: -0.006em;
++  min-width: 0;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.overlay-action {
++  align-items: center;
++  background: transparent;
++  border: 1px solid var(--ns-border);
++  border-radius: 8px;
++  color: var(--ns-fg);
++  cursor: pointer;
++  display: inline-flex;
++  flex: 0 0 auto;
++  font: inherit;
++  font-size: 12.5px;
++  gap: 6px;
++  height: 28px;
++  padding: 0 10px;
++  white-space: nowrap;
++}
++
++.overlay-action:hover {
++  background-color: var(--ns-accent);
++}
++
++.overlay-action svg {
++  flex: none;
++  height: 14px;
++  width: 14px;
++}
++
++.overlay-sub {
++  color: var(--ns-muted-fg);
++  font-size: 13px;
++  margin: 0;
++  padding: 0 16px 12px;
++}
++
++.overlay-search {
++  align-items: center;
++  border: 1px solid var(--ns-border);
++  border-radius: 8px;
++  display: flex;
++  flex: 0 0 auto;
++  gap: 8px;
++  margin: 0 16px 8px;
++  padding: 6px 10px;
++}
++
++.overlay-search input {
++  background: transparent;
++  border: none;
++  color: var(--ns-fg);
++  flex: 1;
++  font: inherit;
++  font-size: 14px;
++  min-width: 0;
++  outline: none;
++}
++
++.overlay-list {
++  display: flex;
++  flex: 1;
++  flex-direction: column;
++  gap: 2px;
++  min-height: 0;
++  overflow-x: hidden;
++  overflow-y: auto;
++  padding: 0 12px 16px;
++  scrollbar-color: var(--ns-border) transparent;
++  scrollbar-width: thin;
++}
++
++.overlay-group-label {
++  color: var(--ns-muted-fg);
++  font-size: 11px;
++  font-weight: 600;
++  letter-spacing: 0.04em;
++  padding: 14px 6px 4px;
++}
++
++.provider-tile {
++  align-items: center;
++  background-color: var(--ns-muted);
++  border-radius: 8px;
++  color: var(--ns-fg);
++  display: inline-flex;
++  flex: 0 0 auto;
++  font-size: 13px;
++  font-weight: 600;
++  height: 28px;
++  justify-content: center;
++  width: 28px;
++}
++
++.provider-row {
++  align-items: center;
++  background-color: color-mix(in srgb, var(--ns-fg) 4%, transparent);
++  border-radius: 10px;
++  display: flex;
++  gap: 10px;
++  padding: 10px 12px;
++}
++
++.provider-info {
++  display: flex;
++  flex: 1;
++  flex-direction: column;
++  gap: 1px;
++  min-width: 0;
++}
++
++.provider-name {
++  font-size: 14px;
++  font-weight: 500;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.provider-sub {
++  color: var(--ns-muted-fg);
++  font-size: 12px;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.provider-badge {
++  border: 1px solid var(--ns-border);
++  border-radius: 6px;
++  color: var(--ns-muted-fg);
++  flex: 0 0 auto;
++  font-size: 11px;
++  padding: 1px 6px;
++}
++
++.model-row {
++  align-items: center;
++  border-radius: 8px;
++  display: flex;
++  gap: 10px;
++  padding: 8px 12px;
++}
++
++.model-row:hover {
++  background-color: color-mix(in srgb, var(--ns-fg) 4%, transparent);
++}
++
++.model-row-name {
++  color: var(--ns-muted-fg);
++  flex: 1;
++  font-size: 13px;
++  min-width: 0;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.connect-row {
++  align-items: center;
++  background: transparent;
++  border: none;
++  border-radius: 10px;
++  color: var(--ns-fg);
++  cursor: pointer;
++  display: flex;
++  font: inherit;
++  gap: 10px;
++  padding: 10px 12px;
++  text-align: left;
++  width: 100%;
++}
++
++.connect-row:hover {
++  background-color: color-mix(in srgb, var(--ns-fg) 6%, transparent);
++}
++
++.switch {
++  background-color: var(--ns-muted);
++  border: none;
++  border-radius: 999px;
++  cursor: pointer;
++  flex: 0 0 auto;
++  height: 16px;
++  padding: 0;
++  position: relative;
++  transition: background-color 0.15s var(--ns-ease);
++  width: 28px;
++}
++
++.switch.is-on {
++  background-color: var(--ns-link);
++}
++
++.switch-knob {
++  background-color: #ffffff;
++  border-radius: 50%;
++  height: 12px;
++  left: 2px;
++  position: absolute;
++  top: 2px;
++  transition: transform 0.15s var(--ns-ease);
++  width: 12px;
++}
++
++.switch.is-on .switch-knob {
++  transform: translateX(12px);
++}
 diff --git a/browser/components/nullsec/sidebar.html b/browser/components/nullsec/sidebar.html
 new file mode 100644
-index 00000000..e820e3ed
+index 00000000..1834bce2
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.html
-@@ -0,0 +1,280 @@
+@@ -0,0 +1,397 @@
 +<!-- This Source Code Form is subject to the terms of the Mozilla Public
 +   - License, v. 2.0. If a copy of the MPL was not distributed with this
 +   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
@@ -2417,17 +3220,45 @@ index 00000000..e820e3ed
 +            >
 +              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
 +            </button>
-+            <select
-+              id="composer-provider"
-+              class="provider-pill"
-+              aria-label="AI provider"
++            <button
++              id="mode-pill"
++              class="composer-pill"
++              type="button"
++              aria-haspopup="listbox"
++              aria-expanded="false"
++              title="Agent mode"
 +            >
-+              <option value="openai">OpenAI</option>
-+              <option value="anthropic">Anthropic</option>
-+              <option value="compatible">Compatible</option>
-+            </select>
++              <svg class="pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
++              <span id="mode-pill-label">Build</span>
++              <svg class="pill-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
++            </button>
 +          </div>
-+          <div class="composer-group">
++          <div class="composer-group composer-group-model">
++            <button
++              id="model-pill"
++              class="composer-pill composer-pill-model"
++              type="button"
++              aria-haspopup="listbox"
++              aria-expanded="false"
++              title="Select model"
++            >
++              <svg id="model-pill-icon" class="pill-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>
++              <span id="model-pill-label">Select model</span>
++              <svg class="pill-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
++            </button>
++            <button
++              id="effort-pill"
++              class="composer-pill"
++              type="button"
++              aria-haspopup="listbox"
++              aria-expanded="false"
++              title="Reasoning effort"
++            >
++              <span id="effort-pill-label">Max</span>
++              <svg class="pill-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
++            </button>
++          </div>
++          <div class="composer-group composer-group-send">
 +            <button
 +              id="chat-stop"
 +              class="send-button is-stop"
@@ -2449,7 +3280,83 @@ index 00000000..e820e3ed
 +          </div>
 +        </div>
 +      </div>
++
++      <div id="model-menu" class="popover" hidden>
++        <div class="popover-search">
++          <svg class="popover-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
++          <input
++            id="model-search"
++            type="text"
++            placeholder="Search models"
++            autocomplete="off"
++            spellcheck="false"
++          />
++        </div>
++        <div id="model-menu-list" class="popover-list"></div>
++        <button id="model-manage" class="popover-footer" type="button">
++          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
++          <span>Manage models</span>
++        </button>
++      </div>
++
++      <div id="mode-menu" class="popover popover-sm" hidden>
++        <button class="popover-option" data-mode="build" type="button">
++          <span class="popover-option-main">
++            <span class="popover-option-title">Build</span>
++            <span class="popover-option-sub">Agent can navigate, click and capture flags</span>
++          </span>
++          <svg class="popover-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
++        </button>
++        <button class="popover-option" data-mode="plan" type="button">
++          <span class="popover-option-main">
++            <span class="popover-option-title">Plan</span>
++            <span class="popover-option-sub">Answer only, never operates the browser</span>
++          </span>
++          <svg class="popover-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
++        </button>
++      </div>
++
++      <div id="effort-menu" class="popover popover-sm" hidden>
++        <button class="popover-option" data-effort="off" type="button"><span class="popover-option-main"><span class="popover-option-title">Off</span><span class="popover-option-sub">Fastest, lowest cost</span></span><svg class="popover-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
++        <button class="popover-option" data-effort="low" type="button"><span class="popover-option-main"><span class="popover-option-title">Low</span><span class="popover-option-sub">Quick answers</span></span><svg class="popover-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
++        <button class="popover-option" data-effort="medium" type="button"><span class="popover-option-main"><span class="popover-option-title">Medium</span><span class="popover-option-sub">Balanced</span></span><svg class="popover-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
++        <button class="popover-option" data-effort="high" type="button"><span class="popover-option-main"><span class="popover-option-title">High</span><span class="popover-option-sub">Deeper reasoning</span></span><svg class="popover-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
++        <button class="popover-option" data-effort="max" type="button"><span class="popover-option-main"><span class="popover-option-title">Max</span><span class="popover-option-sub">Most thorough</span></span><svg class="popover-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
++      </div>
 +    </div>
++
++    <section id="manage-models" class="overlay" hidden>
++      <div class="overlay-header">
++        <span class="overlay-title">Manage models</span>
++        <button id="manage-connect" class="overlay-action" type="button">
++          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
++          <span>Connect provider</span>
++        </button>
++        <button id="manage-close" class="ns-icon-btn" type="button" title="Close" aria-label="Close">
++          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
++        </button>
++      </div>
++      <p class="overlay-sub">Customize which models appear in the model selector.</p>
++      <div class="overlay-search">
++        <svg class="popover-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
++        <input id="manage-search" type="text" placeholder="Search models" autocomplete="off" spellcheck="false" />
++      </div>
++      <div id="manage-list" class="overlay-list"></div>
++    </section>
++
++    <section id="connect-provider" class="overlay" hidden>
++      <div class="overlay-header">
++        <span class="overlay-title">Connect provider</span>
++        <button id="connect-close" class="ns-icon-btn" type="button" title="Close" aria-label="Close">
++          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
++        </button>
++      </div>
++      <div class="overlay-search">
++        <svg class="popover-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
++        <input id="connect-search" type="text" placeholder="Search providers" autocomplete="off" spellcheck="false" />
++      </div>
++      <div id="connect-list" class="overlay-list"></div>
++    </section>
 +
 +    <section id="settings" hidden>
 +      <div class="settings-header">
@@ -2508,6 +3415,19 @@ index 00000000..e820e3ed
 +            ></moz-toggle>
 +          </div>
 +        </moz-card>
++        <moz-card heading="Privacy">
++          <div class="settings-fields">
++            <moz-toggle
++              id="ai-anonymous"
++              label="Anonymize provider requests"
++              description="Disable request retention and strip identifying metadata."
++            ></moz-toggle>
++            <p class="settings-help">
++              NullSec never logs conversations or sends analytics, and keys stay
++              on this device. Local models keep every request on your machine.
++            </p>
++          </div>
++        </moz-card>
 +        <moz-card heading="System prompt">
 +          <div class="settings-fields">
 +            <moz-textarea
@@ -2528,10 +3448,10 @@ index 00000000..e820e3ed
 +</html>
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..b31f8971
+index 00000000..edf4cf5b
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
-@@ -0,0 +1,2290 @@
+@@ -0,0 +1,2823 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -2542,6 +3462,10 @@ index 00000000..b31f8971
 +
 +const NullSecSkills = ChromeUtils.importESModule(
 +  "moz-src:///browser/components/nullsec/Skills.sys.mjs"
++);
++
++const NullSecModels = ChromeUtils.importESModule(
++  "moz-src:///browser/components/nullsec/NullSecModels.sys.mjs"
 +);
 +
 +const KEY_PREF_PREFIX = "browser.nullsec.ai.key.";
@@ -2556,6 +3480,27 @@ index 00000000..b31f8971
 +  system: "browser.nullsec.ai.system",
 +  autopilot: "browser.nullsec.ai.autopilot",
 +  pageContext: "browser.nullsec.ai.pageContext",
++  modelId: "browser.nullsec.ai.modelId",
++  disabled: "browser.nullsec.ai.disabled",
++  effort: "browser.nullsec.ai.effort",
++  mode: "browser.nullsec.ai.mode",
++  anonymous: "browser.nullsec.ai.anonymous",
++};
++
++const EFFORT_TEMP = {
++  off: "0.8",
++  low: "0.6",
++  medium: "0.4",
++  high: "0.2",
++  max: "0.1",
++};
++
++const EFFORT_LABEL = {
++  off: "Off",
++  low: "Low",
++  medium: "Medium",
++  high: "High",
++  max: "Max",
 +};
 +
 +const MAX_STEPS = 12;
@@ -2991,20 +3936,71 @@ index 00000000..b31f8971
 +  }
 +}
 +
++function getDisabledSet() {
++  return new Set(
++    Services.prefs
++      .getStringPref(PREF.disabled, "")
++      .split(",")
++      .map(value => value.trim())
++      .filter(Boolean)
++  );
++}
++
++function setDisabledSet(set) {
++  Services.prefs.setStringPref(PREF.disabled, [...set].join(","));
++}
++
++function currentModelId() {
++  const provider = Services.prefs.getStringPref(PREF.provider, "openai");
++  const stored = Services.prefs.getStringPref(PREF.modelId, "");
++  const entry = NullSecModels.findModel(stored);
++  if (entry && entry.providerId === provider) {
++    return stored;
++  }
++  const legacyId = NullSecModels.makeId(
++    provider,
++    Services.prefs.getStringPref(PREF.model, "")
++  );
++  return NullSecModels.findModel(legacyId) ? legacyId : "";
++}
++
++function currentModel() {
++  return NullSecModels.findModel(currentModelId());
++}
++
 +function getProviderConfig() {
-+  const requested = Services.prefs.getStringPref(PREF.provider, "openai");
-+  const provider = PROVIDER_DEFAULTS[requested] ? requested : "openai";
-+  const defaults = PROVIDER_DEFAULTS[provider];
++  const entry = currentModel();
++  const requested = entry
++    ? entry.providerId
++    : Services.prefs.getStringPref(PREF.provider, "openai");
++  const provider = requested;
++  const defaults = PROVIDER_DEFAULTS[provider] || PROVIDER_DEFAULTS.openai;
++  const api = entry
++    ? entry.api
++    : provider === "anthropic"
++      ? "anthropic"
++      : "openai";
 +  return {
 +    provider,
-+    baseurl: Services.prefs.getStringPref(PREF.baseurl, defaults.baseurl),
-+    model: Services.prefs.getStringPref(PREF.model, defaults.model),
++    api,
++    baseurl: Services.prefs.getStringPref(
++      PREF.baseurl,
++      entry?.baseurl || defaults.baseurl
++    ),
++    model: Services.prefs.getStringPref(
++      PREF.model,
++      entry?.modelId || defaults.model
++    ),
 +    temperature: Services.prefs.getStringPref(PREF.temperature, "0.3"),
 +    system: Services.prefs.getStringPref(PREF.system, ""),
 +  };
 +}
 +
 +function isAiConfigured() {
++  const entry = currentModel();
++  if (entry && !entry.needsKey) {
++    return true;
++  }
 +  const cfg = getProviderConfig();
 +  if (cfg.provider === "compatible") {
 +    return true;
@@ -3056,6 +4052,375 @@ index 00000000..b31f8971
 +  return /401|invalid_api_key|Unauthorized|no valid api key|Failed to fetch|NetworkError|Load failed/i.test(
 +    message
 +  );
++}
++
++function providerTile(provider) {
++  const tile = document.createElement("span");
++  tile.className = "provider-tile";
++  tile.textContent = (provider.name || "?").trim().charAt(0).toUpperCase();
++  return tile;
++}
++
++function switchEl(pressed, onToggle) {
++  const button = document.createElement("button");
++  button.type = "button";
++  button.className = "switch" + (pressed ? " is-on" : "");
++  button.setAttribute("role", "switch");
++  button.setAttribute("aria-checked", String(!!pressed));
++  const knob = document.createElement("span");
++  knob.className = "switch-knob";
++  button.appendChild(knob);
++  button.addEventListener("click", event => {
++    event.stopPropagation();
++    onToggle();
++  });
++  return button;
++}
++
++function markPopoverOptions(menu, key, value) {
++  for (const option of menu.querySelectorAll(".popover-option")) {
++    option.classList.toggle("is-selected", option.dataset[key] === value);
++  }
++}
++
++function renderModelPill() {
++  const entry = currentModel();
++  if (dom.modelPillLabel) {
++    dom.modelPillLabel.textContent = entry ? entry.modelName : "Select model";
++  }
++  if (dom.modelPill) {
++    dom.modelPill.title = entry
++      ? `${entry.providerName} — ${entry.modelName}`
++      : "Select model";
++    dom.modelPill.classList.toggle("is-unset", !entry);
++  }
++}
++
++function renderModePill() {
++  const mode = Services.prefs.getStringPref(PREF.mode, "build");
++  if (dom.modePillLabel) {
++    dom.modePillLabel.textContent = mode === "plan" ? "Plan" : "Build";
++  }
++  markPopoverOptions(dom.modeMenu, "mode", mode);
++}
++
++function renderEffortPill() {
++  const effort = Services.prefs.getStringPref(PREF.effort, "max");
++  if (dom.effortPillLabel) {
++    dom.effortPillLabel.textContent = EFFORT_LABEL[effort] || "Max";
++  }
++  markPopoverOptions(dom.effortMenu, "effort", effort);
++}
++
++function renderPills() {
++  renderModelPill();
++  renderModePill();
++  renderEffortPill();
++}
++
++function applyMode(mode) {
++  Services.prefs.setStringPref(PREF.mode, mode === "plan" ? "plan" : "build");
++  renderModePill();
++}
++
++function applyEffort(effort) {
++  const value = EFFORT_TEMP[effort] ? effort : "max";
++  Services.prefs.setStringPref(PREF.effort, value);
++  Services.prefs.setStringPref(PREF.temperature, EFFORT_TEMP[value]);
++  renderEffortPill();
++  if (!dom.settings.hidden) {
++    loadSettingsIntoUI();
++  }
++}
++
++function closePopovers() {
++  for (const menu of [dom.modelMenu, dom.modeMenu, dom.effortMenu]) {
++    if (menu) {
++      menu.hidden = true;
++    }
++  }
++  for (const pill of [dom.modelPill, dom.modePill, dom.effortPill]) {
++    pill?.setAttribute("aria-expanded", "false");
++  }
++}
++
++function anchorPopover(menu, pill, full) {
++  menu.style.right = "auto";
++  if (full) {
++    menu.style.left = "16px";
++    menu.style.right = "16px";
++  } else {
++    menu.style.left = `${Math.max(16, pill.offsetLeft)}px`;
++  }
++}
++
++function togglePopover(menu, pill, full) {
++  const opening = menu.hidden;
++  closePopovers();
++  if (!opening) {
++    return;
++  }
++  menu.hidden = false;
++  anchorPopover(menu, pill, full);
++  pill.setAttribute("aria-expanded", "true");
++  if (menu === dom.modelMenu) {
++    dom.modelSearch.value = "";
++    renderModelMenu("");
++    dom.modelSearch.focus();
++  }
++}
++
++function selectModel(id) {
++  const entry = NullSecModels.findModel(id);
++  if (!entry) {
++    return;
++  }
++  Services.prefs.setStringPref(PREF.modelId, id);
++  Services.prefs.setStringPref(PREF.provider, entry.providerId);
++  if (entry.baseurl) {
++    Services.prefs.setStringPref(PREF.baseurl, entry.baseurl);
++  }
++  Services.prefs.setStringPref(PREF.model, entry.modelId);
++  renderModelPill();
++  closePopovers();
++  loadSettingsIntoUI();
++  updateWelcome();
++}
++
++function renderModelMenu(filter = "") {
++  const list = dom.modelMenuList;
++  list.replaceChildren();
++  const disabled = getDisabledSet();
++  const current = currentModelId();
++  const query = filter.trim().toLowerCase();
++  const groups = [];
++  const byProvider = new Map();
++  for (const model of NullSecModels.allModels()) {
++    if (disabled.has(model.id)) {
++      continue;
++    }
++    if (
++      query &&
++      !`${model.providerName} ${model.modelName}`.toLowerCase().includes(query)
++    ) {
++      continue;
++    }
++    let group = byProvider.get(model.providerId);
++    if (!group) {
++      group = { name: model.providerName, items: [] };
++      byProvider.set(model.providerId, group);
++      groups.push(group);
++    }
++    group.items.push(model);
++  }
++  if (!groups.length) {
++    const empty = document.createElement("div");
++    empty.className = "popover-empty";
++    empty.textContent = "No models. Add one in Manage models.";
++    list.appendChild(empty);
++    return;
++  }
++  for (const group of groups) {
++    const label = document.createElement("div");
++    label.className = "popover-group-label";
++    label.textContent = group.name;
++    list.appendChild(label);
++    for (const model of group.items) {
++      const row = document.createElement("button");
++      row.type = "button";
++      row.className = "popover-row";
++      if (model.id === current) {
++        row.classList.add("is-selected");
++      }
++      const name = document.createElement("span");
++      name.className = "popover-row-name";
++      name.textContent = model.modelName;
++      row.appendChild(name);
++      if (model.local) {
++        const tag = document.createElement("span");
++        tag.className = "popover-tag";
++        tag.textContent = "Local";
++        row.appendChild(tag);
++      }
++      row.appendChild(svgIcon("check", "ns-svg popover-row-check"));
++      row.addEventListener("click", () => selectModel(model.id));
++      list.appendChild(row);
++    }
++  }
++}
++
++function openManageModels() {
++  closePopovers();
++  dom.manage.hidden = false;
++  showSettings(false);
++  dom.manageSearch.value = "";
++  renderManageModels("");
++  dom.manageSearch.focus();
++}
++
++function renderManageModels(filter = "") {
++  const list = dom.manageList;
++  list.replaceChildren();
++  const disabled = getDisabledSet();
++  const query = filter.trim().toLowerCase();
++  for (const groupKey of ["popular", "other"]) {
++    const providers = NullSecModels.PROVIDERS.filter(
++      provider => provider.group === groupKey
++    );
++    const matched = providers
++      .map(provider => ({
++        provider,
++        models: provider.models.filter(
++          model =>
++            !query ||
++            `${provider.name} ${model.name}`.toLowerCase().includes(query)
++        ),
++      }))
++      .filter(
++        entry => entry.models.length || (!query && !entry.provider.models.length)
++      );
++    if (!matched.length) {
++      continue;
++    }
++    const heading = document.createElement("div");
++    heading.className = "overlay-group-label";
++    heading.textContent = NullSecModels.PROVIDER_GROUPS[groupKey];
++    list.appendChild(heading);
++    for (const { provider, models } of matched) {
++      const row = document.createElement("div");
++      row.className = "provider-row";
++      row.appendChild(providerTile(provider));
++      const info = document.createElement("div");
++      info.className = "provider-info";
++      const title = document.createElement("span");
++      title.className = "provider-name";
++      title.textContent = provider.name;
++      info.appendChild(title);
++      row.appendChild(info);
++      const allDisabled =
++        provider.models.length > 0 &&
++        provider.models.every(model =>
++          disabled.has(NullSecModels.makeId(provider.id, model.id))
++        );
++      row.appendChild(
++        switchEl(!allDisabled, () => {
++          const set = getDisabledSet();
++          const enable = allDisabled;
++          for (const model of provider.models) {
++            const id = NullSecModels.makeId(provider.id, model.id);
++            if (enable) {
++              set.delete(id);
++            } else {
++              set.add(id);
++            }
++          }
++          setDisabledSet(set);
++          renderManageModels(dom.manageSearch.value);
++          renderModelPill();
++        })
++      );
++      list.appendChild(row);
++      for (const model of models) {
++        const id = NullSecModels.makeId(provider.id, model.id);
++        const modelRow = document.createElement("div");
++        modelRow.className = "model-row";
++        const name = document.createElement("span");
++        name.className = "model-row-name";
++        name.textContent = model.name;
++        modelRow.appendChild(name);
++        modelRow.appendChild(
++          switchEl(!disabled.has(id), () => {
++            const set = getDisabledSet();
++            if (set.has(id)) {
++              set.delete(id);
++            } else {
++              set.add(id);
++            }
++            setDisabledSet(set);
++            renderManageModels(dom.manageSearch.value);
++            renderModelPill();
++          })
++        );
++        list.appendChild(modelRow);
++      }
++    }
++  }
++}
++
++function openConnectProvider() {
++  dom.manage.hidden = true;
++  dom.connect.hidden = false;
++  dom.connectSearch.value = "";
++  renderConnectProviders("");
++  dom.connectSearch.focus();
++}
++
++function renderConnectProviders(filter = "") {
++  const list = dom.connectList;
++  list.replaceChildren();
++  const query = filter.trim().toLowerCase();
++  for (const groupKey of ["popular", "other"]) {
++    const providers = NullSecModels.PROVIDERS.filter(
++      provider => provider.group === groupKey
++    ).filter(provider => !query || provider.name.toLowerCase().includes(query));
++    if (!providers.length) {
++      continue;
++    }
++    const heading = document.createElement("div");
++    heading.className = "overlay-group-label";
++    heading.textContent = NullSecModels.PROVIDER_GROUPS[groupKey];
++    list.appendChild(heading);
++    for (const provider of providers) {
++      const row = document.createElement("button");
++      row.type = "button";
++      row.className = "connect-row";
++      row.appendChild(providerTile(provider));
++      const info = document.createElement("div");
++      info.className = "provider-info";
++      const title = document.createElement("span");
++      title.className = "provider-name";
++      title.textContent = provider.name;
++      info.appendChild(title);
++      if (provider.description) {
++        const sub = document.createElement("span");
++        sub.className = "provider-sub";
++        sub.textContent = provider.description;
++        info.appendChild(sub);
++      }
++      row.appendChild(info);
++      if (provider.badge) {
++        const badge = document.createElement("span");
++        badge.className = "provider-badge";
++        badge.textContent = provider.badge;
++        row.appendChild(badge);
++      }
++      row.addEventListener("click", () => connectProvider(provider.id));
++      list.appendChild(row);
++    }
++  }
++}
++
++function connectProvider(id) {
++  const provider = NullSecModels.getProvider(id);
++  if (!provider) {
++    return;
++  }
++  Services.prefs.setStringPref(PREF.provider, id);
++  if (provider.baseurl) {
++    Services.prefs.setStringPref(PREF.baseurl, provider.baseurl);
++  }
++  if (provider.models[0]) {
++    Services.prefs.setStringPref(
++      PREF.modelId,
++      NullSecModels.makeId(id, provider.models[0].id)
++    );
++    Services.prefs.setStringPref(PREF.model, provider.models[0].id);
++  }
++  renderModelPill();
++  dom.connect.hidden = true;
++  dom.manage.hidden = true;
++  updateWelcome();
++  showSettings(true);
 +}
 +
 +function buildSystemPrompt(agent = false) {
@@ -3117,6 +4482,10 @@ index 00000000..b31f8971
 +
 +function showSettings(visible) {
 +  dom.settings.hidden = !visible;
++  if (visible) {
++    dom.manage.hidden = true;
++    dom.connect.hidden = true;
++  }
 +}
 +
 +function setStreaming(value) {
@@ -3663,6 +5032,21 @@ index 00000000..b31f8971
 +}
 +
 +async function streamOpenAI({ cfg, key, messages, signal, onToken, system }) {
++  const anonymous = getBoolPref(PREF.anonymous, true);
++  const isOpenAIHost = /(^|\.)openai\.com/.test(cfg.baseurl || "");
++  const body = {
++    model: cfg.model,
++    stream: true,
++    temperature: Number(cfg.temperature) || 0,
++    messages: [
++      { role: "system", content: system ?? buildSystemPrompt() },
++      ...messages,
++    ],
++  };
++  if (anonymous && isOpenAIHost) {
++    // Ask OpenAI to disable server-side storage of this request.
++    body.store = false;
++  }
 +  const response = await fetch(apiUrl(cfg.baseurl, "/chat/completions"), {
 +    method: "POST",
 +    signal,
@@ -3670,15 +5054,7 @@ index 00000000..b31f8971
 +      "Content-Type": "application/json",
 +      Authorization: `Bearer ${key}`,
 +    },
-+    body: JSON.stringify({
-+      model: cfg.model,
-+      stream: true,
-+      temperature: Number(cfg.temperature) || 0,
-+      messages: [
-+        { role: "system", content: system ?? buildSystemPrompt() },
-+        ...messages,
-+      ],
-+    }),
++    body: JSON.stringify(body),
 +  });
 +  if (!response.ok) {
 +    throw new Error(`${response.status} ${await response.text()}`);
@@ -3752,7 +5128,10 @@ index 00000000..b31f8971
 +    generateReport({ open: true });
 +    return;
 +  }
-+  if (getBoolPref(PREF.autopilot, false)) {
++  if (
++    getBoolPref(PREF.autopilot, false) &&
++    Services.prefs.getStringPref(PREF.mode, "build") === "build"
++  ) {
 +    return runAgent(trimmed);
 +  }
 +  if (!isAiConfigured()) {
@@ -3843,7 +5222,7 @@ index 00000000..b31f8971
 +        scrollChat();
 +      },
 +    };
-+    if (cfg.provider === "anthropic") {
++    if (cfg.api === "anthropic") {
 +      await streamAnthropic(args);
 +    } else {
 +      await streamOpenAI(args);
@@ -4108,7 +5487,7 @@ index 00000000..b31f8971
 +      }
 +    },
 +  };
-+  if (cfg.provider === "anthropic") {
++  if (cfg.api === "anthropic") {
 +    await streamAnthropic(args);
 +  } else {
 +    await streamOpenAI(args);
@@ -4605,18 +5984,8 @@ index 00000000..b31f8971
 +  );
 +}
 +
-+function applyProviderDefaults(provider) {
-+  const defaults = PROVIDER_DEFAULTS[provider];
-+  if (!defaults) {
-+    return;
-+  }
-+  dom.baseurl.value = defaults.baseurl;
-+  dom.model.value = defaults.model;
-+}
-+
 +function loadSettingsIntoUI() {
 +  const cfg = getProviderConfig();
-+  dom.provider.value = cfg.provider;
 +  dom.baseurl.value = cfg.baseurl;
 +  dom.model.value = cfg.model;
 +  dom.temp.value = cfg.temperature;
@@ -4628,12 +5997,16 @@ index 00000000..b31f8971
 +    : "Stored with OS encryption";
 +  dom.autopilot.pressed = getBoolPref(PREF.autopilot, false);
 +  dom.pageContext.pressed = getBoolPref(PREF.pageContext, true);
++  if (dom.anonymous) {
++    dom.anonymous.pressed = getBoolPref(PREF.anonymous, true);
++  }
++  renderPills();
 +  updatePageToggle();
 +  updateContext();
 +}
 +
 +async function saveSettingsFromUI() {
-+  const provider = dom.provider.value;
++  const provider = Services.prefs.getStringPref(PREF.provider, "openai");
 +  const defaults = PROVIDER_DEFAULTS[provider] || PROVIDER_DEFAULTS.openai;
 +  const baseurl = dom.baseurl.value.trim() || defaults.baseurl;
 +  const model = dom.model.value.trim() || defaults.model;
@@ -4647,10 +6020,17 @@ index 00000000..b31f8971
 +  Services.prefs.setStringPref(PREF.provider, provider);
 +  Services.prefs.setStringPref(PREF.baseurl, baseurl);
 +  Services.prefs.setStringPref(PREF.model, model);
++  const catalogId = NullSecModels.makeId(provider, model);
++  if (NullSecModels.findModel(catalogId)) {
++    Services.prefs.setStringPref(PREF.modelId, catalogId);
++  }
 +  Services.prefs.setStringPref(PREF.temperature, temperature);
 +  Services.prefs.setStringPref(PREF.system, system);
 +  Services.prefs.setBoolPref(PREF.autopilot, dom.autopilot.pressed);
 +  Services.prefs.setBoolPref(PREF.pageContext, dom.pageContext.pressed);
++  if (dom.anonymous) {
++    Services.prefs.setBoolPref(PREF.anonymous, dom.anonymous.pressed);
++  }
 +  let message = "Saved.";
 +  if (dom.key.value) {
 +    const stored = await setKey(provider, dom.key.value);
@@ -4665,7 +6045,29 @@ index 00000000..b31f8971
 +}
 +
 +function initChrome() {
-+  dom.provider = $("composer-provider");
++  dom.modelPill = $("model-pill");
++  dom.modelPillLabel = $("model-pill-label");
++  dom.modelPillIcon = $("model-pill-icon");
++  dom.modePill = $("mode-pill");
++  dom.modePillLabel = $("mode-pill-label");
++  dom.effortPill = $("effort-pill");
++  dom.effortPillLabel = $("effort-pill-label");
++  dom.modelMenu = $("model-menu");
++  dom.modelMenuList = $("model-menu-list");
++  dom.modelSearch = $("model-search");
++  dom.modelManage = $("model-manage");
++  dom.modeMenu = $("mode-menu");
++  dom.effortMenu = $("effort-menu");
++  dom.manage = $("manage-models");
++  dom.manageList = $("manage-list");
++  dom.manageSearch = $("manage-search");
++  dom.manageConnect = $("manage-connect");
++  dom.manageClose = $("manage-close");
++  dom.connect = $("connect-provider");
++  dom.connectList = $("connect-list");
++  dom.connectSearch = $("connect-search");
++  dom.connectClose = $("connect-close");
++  dom.anonymous = $("ai-anonymous");
 +  dom.traffic = $("header-traffic");
 +  dom.settingsButton = $("header-settings");
 +  dom.close = $("header-close");
@@ -4724,17 +6126,64 @@ index 00000000..b31f8971
 +  updatePageToggle();
 +  updateWelcome();
 +
-+  dom.provider.addEventListener("change", () => {
-+    const provider = dom.provider.value;
-+    Services.prefs.setStringPref(PREF.provider, provider);
-+    applyProviderDefaults(provider);
-+    const defaults = PROVIDER_DEFAULTS[provider];
-+    if (defaults) {
-+      Services.prefs.setStringPref(PREF.baseurl, defaults.baseurl);
-+      Services.prefs.setStringPref(PREF.model, defaults.model);
++  dom.modelPill.addEventListener("click", event => {
++    event.stopPropagation();
++    togglePopover(dom.modelMenu, dom.modelPill, true);
++  });
++  dom.modePill.addEventListener("click", event => {
++    event.stopPropagation();
++    togglePopover(dom.modeMenu, dom.modePill, false);
++  });
++  dom.effortPill.addEventListener("click", event => {
++    event.stopPropagation();
++    togglePopover(dom.effortMenu, dom.effortPill, false);
++  });
++  dom.modelSearch.addEventListener("input", () =>
++    renderModelMenu(dom.modelSearch.value)
++  );
++  dom.modelManage.addEventListener("click", openManageModels);
++  dom.modeMenu.addEventListener("click", event => {
++    const option = event.target.closest("[data-mode]");
++    if (option) {
++      applyMode(option.dataset.mode);
++      closePopovers();
 +    }
-+    loadSettingsIntoUI();
-+    updateWelcome();
++  });
++  dom.effortMenu.addEventListener("click", event => {
++    const option = event.target.closest("[data-effort]");
++    if (option) {
++      applyEffort(option.dataset.effort);
++      closePopovers();
++    }
++  });
++  dom.manageClose.addEventListener("click", () => {
++    dom.manage.hidden = true;
++  });
++  dom.manageConnect.addEventListener("click", openConnectProvider);
++  dom.manageSearch.addEventListener("input", () =>
++    renderManageModels(dom.manageSearch.value)
++  );
++  dom.connectClose.addEventListener("click", () => {
++    dom.connect.hidden = true;
++  });
++  dom.connectSearch.addEventListener("input", () =>
++    renderConnectProviders(dom.connectSearch.value)
++  );
++  document.addEventListener("click", event => {
++    if (
++      event.target.closest(".popover") ||
++      event.target.closest(".composer-pill")
++    ) {
++      return;
++    }
++    closePopovers();
++  });
++  document.addEventListener("keydown", event => {
++    if (event.key === "Escape") {
++      closePopovers();
++      dom.manage.hidden = true;
++      dom.connect.hidden = true;
++    }
 +  });
 +
 +  dom.autopilot.addEventListener("toggle", () => {
@@ -4763,7 +6212,7 @@ index 00000000..b31f8971
 +  );
 +  dom.save.addEventListener("click", saveSettingsFromUI);
 +  dom.clearKey.addEventListener("click", async () => {
-+    const provider = dom.provider.value;
++    const provider = Services.prefs.getStringPref(PREF.provider, "openai");
 +    const removed = await setKey(provider, "");
 +    loadSettingsIntoUI();
 +    updateWelcome();
@@ -4804,6 +6253,10 @@ index 00000000..b31f8971
 +
 +async function init() {
 +  initChrome();
++  const effort = Services.prefs.getStringPref(PREF.effort, "max");
++  if (EFFORT_TEMP[effort]) {
++    Services.prefs.setStringPref(PREF.temperature, EFFORT_TEMP[effort]);
++  }
 +  loadSettingsIntoUI();
 +  updateContext();
 +  const unsubscribeReports = NullSecStore.subscribe(type => {
