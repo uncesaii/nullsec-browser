@@ -240,10 +240,10 @@ index 7c5e6323..14c7662c 100644
      "pagedata",
 diff --git a/browser/components/nullsec/NullSecModels.sys.mjs b/browser/components/nullsec/NullSecModels.sys.mjs
 new file mode 100644
-index 00000000..a2ea04ce
+index 00000000..d4cd4fa1
 --- /dev/null
 +++ b/browser/components/nullsec/NullSecModels.sys.mjs
-@@ -0,0 +1,319 @@
+@@ -0,0 +1,469 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -395,24 +395,32 @@ index 00000000..a2ea04ce
 +    group: "other",
 +    description: "Aggregated frontier models",
 +    api: "openai",
-+    baseurl: "https://api.tokenharbor.ai/v1",
++    baseurl: "https://tokenharbor.ai/v1",
 +    keyLabel: "Token Harbor API key",
 +    needsKey: true,
 +    models: [
-+      { id: "deepseek-v4.1-flash", name: "DeepSeek V4.1 Flash (Free)" },
-+      { id: "deepseek-v4.1", name: "DeepSeek V4.1" },
-+      { id: "qwen3.8-max", name: "Qwen3.8 Max" },
++      { id: "deepseek-v4.1-flash", name: "DeepSeek V4.1 Flash" },
++      { id: "claude-opus-5.5", name: "Claude Opus 5.5" },
++      { id: "qwen3.7-max", name: "Qwen3.7 Max" },
++      { id: "gpt-6-luna", name: "GPT-6 Luna" },
 +    ],
 +  },
 +  {
 +    id: "muse",
 +    name: "Muse",
 +    group: "other",
++    description: "Meta Model API",
 +    api: "openai",
-+    baseurl: "https://api.muse.ai/v1",
-+    keyLabel: "Muse API key",
++    baseurl: "https://api.meta.ai/v1",
++    keyLabel: "Meta Model API key",
 +    needsKey: true,
-+    models: [{ id: "muse-1", name: "Muse 1" }],
++    models: [
++      { id: "muse-spark-1.3", name: "Muse Spark 1.3" },
++      { id: "muse-spark-1.2", name: "Muse Spark 1.2" },
++      { id: "muse-spark-1.1", name: "Muse Spark 1.1" },
++      { id: "muse-wonder-1.0", name: "Muse Wonder 1.0" },
++      { id: "muse-ember-1.0", name: "Muse Ember 1.0" },
++    ],
 +  },
 +  {
 +    id: "302ai",
@@ -457,6 +465,144 @@ index 00000000..a2ea04ce
 +  Services.prefs.setStringPref(CUSTOM_PREF, JSON.stringify(list));
 +}
 +
++const CATALOG_PREF = "browser.nullsec.ai.modelCatalog";
++const NON_CHAT_MODEL =
++  /embedding|whisper|\btts\b|dall-e|moderation|transcrib|realtime|audio|image|davinci|babbage|rerank|guard/i;
++
++function readCatalog() {
++  try {
++    const map = JSON.parse(Services.prefs.getStringPref(CATALOG_PREF, "{}"));
++    return map && typeof map === "object" ? map : {};
++  } catch (error) {
++    return {};
++  }
++}
++
++function writeCatalog(map) {
++  Services.prefs.setStringPref(CATALOG_PREF, JSON.stringify(map));
++}
++
++export function setDiscoveredModels(providerId, models) {
++  const map = readCatalog();
++  const clean = (Array.isArray(models) ? models : [])
++    .map(model => ({
++      id: String(model?.id || ""),
++      name: String(model?.name || model?.id || ""),
++    }))
++    .filter(model => model.id);
++  if (clean.length) {
++    map[providerId] = clean;
++  } else {
++    delete map[providerId];
++  }
++  writeCatalog(map);
++}
++
++export function getDiscoveredModels(providerId) {
++  const list = readCatalog()[providerId];
++  return Array.isArray(list) ? list : [];
++}
++
++function modelsOf(provider) {
++  const discovered = getDiscoveredModels(provider.id);
++  return discovered.length ? discovered : provider.models || [];
++}
++
++const BASEURL_PREF = "browser.nullsec.ai.baseUrls";
++
++function readBaseUrls() {
++  try {
++    const map = JSON.parse(Services.prefs.getStringPref(BASEURL_PREF, "{}"));
++    return map && typeof map === "object" ? map : {};
++  } catch (error) {
++    return {};
++  }
++}
++
++export function setProviderBaseUrl(providerId, url) {
++  const map = readBaseUrls();
++  const clean = String(url || "").trim();
++  if (clean) {
++    map[providerId] = clean;
++  } else {
++    delete map[providerId];
++  }
++  Services.prefs.setStringPref(BASEURL_PREF, JSON.stringify(map));
++}
++
++function baseUrlOf(provider) {
++  return readBaseUrls()[provider.id] || provider.baseurl || "";
++}
++
++export function updateCustomProvider(id, patch) {
++  const list = readCustom();
++  const index = list.findIndex(item => item.id === id);
++  if (index === -1) {
++    return;
++  }
++  list[index] = { ...list[index], ...patch };
++  writeCustom(list);
++}
++
++export async function discoverModels({ providerId, baseurl, key, headers, api }) {
++  const base = String(baseurl || "").replace(/\/+$/, "");
++  if (!base) {
++    return { ok: false, reason: "no-url" };
++  }
++  const extra = {};
++  for (const header of Array.isArray(headers) ? headers : []) {
++    if (header?.name) {
++      extra[header.name] = header.value ?? "";
++    }
++  }
++  const requestHeaders = { Accept: "application/json", ...extra };
++  let url = `${base}/models`;
++  if (api === "anthropic") {
++    if (!/\/v1$/i.test(base)) {
++      url = `${base}/v1/models`;
++    }
++    if (key) {
++      requestHeaders["x-api-key"] = key;
++      requestHeaders["anthropic-version"] = "2023-06-01";
++      requestHeaders["anthropic-dangerous-direct-browser-access"] = "true";
++    }
++  } else if (providerId === "google") {
++    if (key) {
++      url += `?key=${encodeURIComponent(key)}`;
++    }
++  } else if (key) {
++    requestHeaders.Authorization = `Bearer ${key}`;
++  }
++  try {
++    const response = await fetch(url, { headers: requestHeaders });
++    if (response.status === 401 || response.status === 403) {
++      return { ok: false, reason: "unauthorized", status: response.status };
++    }
++    if (!response.ok) {
++      return { ok: false, reason: "http", status: response.status };
++    }
++    const json = await response.json();
++    const rows = Array.isArray(json?.data)
++      ? json.data
++      : Array.isArray(json?.models)
++        ? json.models
++        : [];
++    const models = rows
++      .map(row => ({
++        id: String(row?.id || row?.name || ""),
++        name: String(row?.display_name || row?.name || row?.id || ""),
++      }))
++      .filter(model => model.id && !NON_CHAT_MODEL.test(model.id));
++    if (!models.length) {
++      return { ok: false, reason: "empty" };
++    }
++    setDiscoveredModels(providerId, models);
++    return { ok: true, models };
++  } catch (error) {
++    return { ok: false, reason: "network", error: String(error?.message || error) };
++  }
++}
++
 +function normalizeCustom(def) {
 +  return {
 +    id: def.id,
@@ -477,7 +623,11 @@ index 00000000..a2ea04ce
 +
 +export function allProviders() {
 +  const custom = readCustom().map(normalizeCustom);
-+  return [...PROVIDERS, ...custom];
++  return [...PROVIDERS, ...custom].map(provider => ({
++    ...provider,
++    baseurl: baseUrlOf(provider),
++    models: modelsOf(provider),
++  }));
 +}
 +
 +export function getProvider(id) {
@@ -1528,10 +1678,10 @@ index 00000000..c9cd4b19
 +init();
 diff --git a/browser/components/nullsec/sidebar.css b/browser/components/nullsec/sidebar.css
 new file mode 100644
-index 00000000..d65b5940
+index 00000000..15fc74b0
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.css
-@@ -0,0 +1,1758 @@
+@@ -0,0 +1,1763 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -3141,6 +3291,11 @@ index 00000000..d65b5940
 +  opacity: 0.9;
 +}
 +
++.primary-button:disabled {
++  cursor: default;
++  opacity: 0.6;
++}
++
 +.connect-body {
 +  display: flex;
 +  flex: 1;
@@ -3710,10 +3865,10 @@ index 00000000..a41dc385
 +</html>
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..ab1939b3
+index 00000000..6f9d9701
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
-@@ -0,0 +1,2986 @@
+@@ -0,0 +1,3047 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -4244,10 +4399,9 @@ index 00000000..ab1939b3
 +  return {
 +    provider,
 +    api,
-+    baseurl: Services.prefs.getStringPref(
-+      PREF.baseurl,
-+      entry?.baseurl || defaults.baseurl
-+    ),
++    baseurl:
++      entry?.baseurl ||
++      Services.prefs.getStringPref(PREF.baseurl, defaults.baseurl),
 +    model: Services.prefs.getStringPref(
 +      PREF.model,
 +      entry?.modelId || defaults.model
@@ -4298,22 +4452,34 @@ index 00000000..ab1939b3
 +function friendlyError(error) {
 +  const message = String(error?.message || error || "Unknown error");
 +  if (/401|invalid_api_key|Unauthorized|no valid api key/i.test(message)) {
-+    return "**Your API key was rejected.** Open **AI settings** and check the key for the selected provider.";
++    return "**Your API key was rejected.** Open the model menu and reconnect the provider to update the key.";
 +  }
 +  if (/404|not found|does not exist|unknown model/i.test(message)) {
-+    return "**The provider rejected the request.** Confirm the model name and Base URL in **AI settings**.";
++    return "**The provider rejected the request.** That model may not be available on this provider — reconnect it to refresh the model list.";
 +  }
 +  if (/Failed to fetch|NetworkError|Load failed|CORS/i.test(message)) {
-+    return "**Could not reach the provider.** Check the Base URL and your network connection in **AI settings**.";
++    return "**Could not reach the provider.** Check your network connection, then reconnect the provider from the model menu.";
 +  }
 +  return `**Error:** ${message}`;
 +}
 +
-+function keyErrorNeedsSettings(error) {
++function keyErrorNeedsReconnect(error) {
 +  const message = String(error?.message || error || "");
-+  return /401|invalid_api_key|Unauthorized|no valid api key|Failed to fetch|NetworkError|Load failed/i.test(
++  return /401|invalid_api_key|Unauthorized|no valid api key|404|not found|does not exist|unknown model|Failed to fetch|NetworkError|Load failed/i.test(
 +    message
 +  );
++}
++
++function reconnectCurrentProvider() {
++  const providerId =
++    currentModel()?.providerId ||
++    Services.prefs.getStringPref(PREF.provider, "openai");
++  const provider = NullSecModels.getProvider(providerId);
++  if (provider && provider.id !== "compatible") {
++    openConnectDetail(provider.id);
++  } else {
++    openConnectProvider();
++  }
 +}
 +
 +function providerTile(provider) {
@@ -4612,14 +4778,21 @@ index 00000000..ab1939b3
 +  Services.prefs.setStringPref(PREF.provider, providerId);
 +  const base = baseOverride || provider.baseurl || "";
 +  if (base) {
++    NullSecModels.setProviderBaseUrl(providerId, base);
 +    Services.prefs.setStringPref(PREF.baseurl, base);
 +  }
 +  if (provider.models[0]) {
-+    Services.prefs.setStringPref(
-+      PREF.modelId,
-+      NullSecModels.makeId(providerId, provider.models[0].id)
++    const currentId = Services.prefs.getStringPref(PREF.modelId, "");
++    const keep = provider.models.some(
++      model => currentId === NullSecModels.makeId(providerId, model.id)
 +    );
-+    Services.prefs.setStringPref(PREF.model, provider.models[0].id);
++    if (!keep) {
++      Services.prefs.setStringPref(
++        PREF.modelId,
++        NullSecModels.makeId(providerId, provider.models[0].id)
++      );
++      Services.prefs.setStringPref(PREF.model, provider.models[0].id);
++    }
 +  }
 +  renderModelPill();
 +  closeOverlays();
@@ -4694,7 +4867,10 @@ index 00000000..ab1939b3
 +  if (!provider) {
 +    return;
 +  }
++  closePopovers();
++  showSettings(false);
 +  connectDetailProvider = provider;
++  dom.manage.hidden = true;
 +  dom.connect.hidden = true;
 +  dom.custom.hidden = true;
 +  dom.connectDetail.hidden = false;
@@ -4708,10 +4884,12 @@ index 00000000..ab1939b3
 +  dom.connectDetailLabel.textContent =
 +    provider.keyLabel || `${provider.name} API key`;
 +  dom.connectDetailKey.value = "";
++  dom.connectDetailKey.placeholder = getKey(provider.id)
++    ? "Connected — leave blank to refresh"
++    : "API key";
 +  dom.connectDetailError.hidden = true;
-+  const needsUrl = !provider.baseurl;
-+  dom.connectDetailUrl.hidden = !needsUrl;
-+  dom.connectDetailUrlLabel.hidden = !needsUrl;
++  dom.connectDetailUrlLabel.hidden = false;
++  dom.connectDetailUrl.hidden = false;
 +  dom.connectDetailUrl.value = provider.baseurl || "";
 +  dom.connectDetailKey.focus();
 +}
@@ -4722,10 +4900,10 @@ index 00000000..ab1939b3
 +    return;
 +  }
 +  const key = dom.connectDetailKey.value.trim();
-+  const url = dom.connectDetailUrl.hidden
-+    ? provider.baseurl
-+    : dom.connectDetailUrl.value.trim();
-+  if (provider.needsKey && !key) {
++  const url = dom.connectDetailUrl.value.trim() || provider.baseurl || "";
++  const existing = getKey(provider.id);
++  const effectiveKey = key || existing;
++  if (provider.needsKey && !effectiveKey) {
 +    dom.connectDetailError.textContent = "Enter an API key to continue.";
 +    dom.connectDetailError.hidden = false;
 +    return;
@@ -4735,16 +4913,45 @@ index 00000000..ab1939b3
 +    dom.connectDetailError.hidden = false;
 +    return;
 +  }
-+  if (key) {
-+    const stored = await setKey(provider.id, key);
-+    if (!stored) {
++  dom.connectDetailError.hidden = true;
++  const label = dom.connectDetailContinue.textContent;
++  dom.connectDetailContinue.disabled = true;
++  dom.connectDetailContinue.textContent = "Connecting…";
++  try {
++    if (key) {
++      const stored = await setKey(provider.id, key);
++      if (!stored) {
++        dom.connectDetailError.textContent =
++          "Could not store the API key securely on this device.";
++        dom.connectDetailError.hidden = false;
++        return;
++      }
++    }
++    const result = await NullSecModels.discoverModels({
++      providerId: provider.id,
++      baseurl: url,
++      key: effectiveKey,
++      headers: provider.headers || [],
++      api: provider.api,
++    });
++    if (
++      result.reason === "unauthorized" &&
++      !provider.custom &&
++      provider.id !== "google"
++    ) {
++      if (key) {
++        await setKey(provider.id, "");
++      }
 +      dom.connectDetailError.textContent =
-+        "Could not store the API key securely on this device.";
++        "The provider rejected this API key. Check the key and try again.";
 +      dom.connectDetailError.hidden = false;
 +      return;
 +    }
++    finishConnect(provider.id, url);
++  } finally {
++    dom.connectDetailContinue.disabled = false;
++    dom.connectDetailContinue.textContent = label;
 +  }
-+  finishConnect(provider.id, url);
 +}
 +
 +function rowInput(placeholder, className) {
@@ -4855,6 +5062,15 @@ index 00000000..ab1939b3
 +  const key = dom.customKey.value.trim();
 +  if (key) {
 +    await setKey(id, key);
++  }
++  if (!models.length) {
++    await NullSecModels.discoverModels({
++      providerId: id,
++      baseurl,
++      key,
++      headers,
++      api: "openai",
++    });
 +  }
 +  finishConnect(id, baseurl);
 +}
@@ -5685,9 +5901,9 @@ index 00000000..ab1939b3
 +    view.body.innerHTML = renderMarkdown(assistant.content);
 +    view.timing = formatTiming(performance.now() - started);
 +    attachAssistantActions(view, { text: assistant.content });
-+    if (keyErrorNeedsSettings(error)) {
++    if (keyErrorNeedsReconnect(error)) {
 +      view.actions?.prepend(
-+        actionButton("Open AI settings", () => showSettings(true))
++        actionButton("Reconnect provider", () => reconnectCurrentProvider())
 +      );
 +    }
 +  } finally {
@@ -6096,9 +6312,9 @@ index 00000000..ab1939b3
 +      text: assistant.content,
 +      allowRegenerate: false,
 +    });
-+    if (keyErrorNeedsSettings(error)) {
++    if (keyErrorNeedsReconnect(error)) {
 +      view.actions?.prepend(
-+        actionButton("Open AI settings", () => showSettings(true))
++        actionButton("Reconnect provider", () => reconnectCurrentProvider())
 +      );
 +    }
 +  } finally {
