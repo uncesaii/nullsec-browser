@@ -1198,10 +1198,10 @@ index 00000000..c9cd4b19
 +init();
 diff --git a/browser/components/nullsec/sidebar.css b/browser/components/nullsec/sidebar.css
 new file mode 100644
-index 00000000..03fe26b8
+index 00000000..9cc8eb31
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.css
-@@ -0,0 +1,838 @@
+@@ -0,0 +1,883 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -1279,6 +1279,51 @@ index 00000000..03fe26b8
 +
 +#chat-welcome[hidden] {
 +  display: none;
++}
++
++.welcome-setup {
++  align-items: center;
++  display: flex;
++  flex-direction: column;
++  gap: var(--space-small);
++}
++
++.welcome-setup[hidden] {
++  display: none;
++}
++
++.welcome-setup .welcome-sub {
++  overflow: visible;
++  text-align: center;
++  white-space: normal;
++}
++
++#welcome-ready[hidden] {
++  display: none;
++}
++
++.welcome-logo {
++  height: 40px;
++  margin-block-end: var(--space-xsmall);
++  opacity: 0.9;
++  width: 40px;
++}
++
++.welcome-actions {
++  display: flex;
++  gap: var(--space-small);
++  justify-content: center;
++  margin-block-start: var(--space-small);
++}
++
++.welcome-steps {
++  color: var(--text-color-deemphasized);
++  font-size: 12px;
++  line-height: 1.7;
++  margin: var(--space-small) auto 0;
++  max-width: 320px;
++  padding-inline-start: 18px;
++  text-align: start;
 +}
 +
 +.welcome-title {
@@ -2042,10 +2087,10 @@ index 00000000..03fe26b8
 +}
 diff --git a/browser/components/nullsec/sidebar.html b/browser/components/nullsec/sidebar.html
 new file mode 100644
-index 00000000..f7586c63
+index 00000000..92c7b5dd
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.html
-@@ -0,0 +1,251 @@
+@@ -0,0 +1,278 @@
 +<!-- This Source Code Form is subject to the terms of the Mozilla Public
 +   - License, v. 2.0. If a copy of the MPL was not distributed with this
 +   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
@@ -2131,9 +2176,36 @@ index 00000000..f7586c63
 +    <div id="thread-wrap">
 +      <div id="thread-viewport">
 +        <div id="chat-welcome">
-+          <h1 class="welcome-title">How can I help you today?</h1>
-+          <p class="welcome-sub" id="welcome-sub"></p>
-+          <div id="suggestions"></div>
++          <div id="welcome-setup" class="welcome-setup" hidden>
++            <img
++              class="welcome-logo"
++              src="chrome://browser/content/nullsec/nullsec.svg"
++              alt=""
++            />
++            <h1 class="welcome-title">Set up NullSec AI</h1>
++            <p class="welcome-sub">
++              Connect a model to analyze traffic, hunt vulnerabilities, and
++              capture flags. Your key is stored locally with OS encryption.
++            </p>
++            <div class="welcome-actions">
++              <moz-button id="welcome-setup-cta" type="primary"
++                >Set up AI</moz-button
++              >
++              <moz-button id="welcome-traffic" type="ghost"
++                >Open Traffic</moz-button
++              >
++            </div>
++            <ol class="welcome-steps">
++              <li>Open <strong>AI settings</strong> and pick a provider.</li>
++              <li>Paste your API key and press <strong>Save</strong>.</li>
++              <li>Start a session from the prompt below.</li>
++            </ol>
++          </div>
++          <div id="welcome-ready">
++            <h1 class="welcome-title">How can I help you today?</h1>
++            <p class="welcome-sub" id="welcome-sub"></p>
++            <div id="suggestions"></div>
++          </div>
 +        </div>
 +        <div id="chat-messages"></div>
 +      </div>
@@ -2299,10 +2371,10 @@ index 00000000..f7586c63
 +</html>
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..d7ce4d93
+index 00000000..46c206bf
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
-@@ -0,0 +1,2163 @@
+@@ -0,0 +1,2252 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -2773,6 +2845,60 @@ index 00000000..d7ce4d93
 +    temperature: Services.prefs.getStringPref(PREF.temperature, "0.3"),
 +    system: Services.prefs.getStringPref(PREF.system, ""),
 +  };
++}
++
++function isAiConfigured() {
++  const cfg = getProviderConfig();
++  if (cfg.provider === "compatible") {
++    return true;
++  }
++  return !!getKey(cfg.provider);
++}
++
++function updateWelcome() {
++  if (!dom.welcomeSetup || !dom.welcomeReady) {
++    return;
++  }
++  const configured = isAiConfigured();
++  dom.welcomeSetup.hidden = configured;
++  dom.welcomeReady.hidden = !configured;
++}
++
++function renderSetupCard(view) {
++  view.body.innerHTML = renderMarkdown(
++    "**Connect an AI provider to get started.**\n\nNullSec needs a model to analyze traffic, find vulnerabilities, and capture flags.\n\n1. Open **AI settings** and choose a provider\n2. Paste your API key and press **Save**\n3. Return here and start a session\n\nYour key is stored locally with OS encryption and is only ever sent to the provider you choose."
++  );
++  const actions = document.createElement("div");
++  actions.className = "assistant-actions";
++  actions.append(
++    actionButton("Open AI settings", () => showSettings(true)),
++    actionButton("Open Traffic", () =>
++      getBrowserWindow()?.SidebarController?.show("viewNullSecTrafficSidebar")
++    )
++  );
++  view.wrapper.appendChild(actions);
++  scrollChat();
++}
++
++function friendlyError(error) {
++  const message = String(error?.message || error || "Unknown error");
++  if (/401|invalid_api_key|Unauthorized|no valid api key/i.test(message)) {
++    return "**Your API key was rejected.** Open **AI settings** and check the key for the selected provider.";
++  }
++  if (/404|not found|does not exist|unknown model/i.test(message)) {
++    return "**The provider rejected the request.** Confirm the model name and Base URL in **AI settings**.";
++  }
++  if (/Failed to fetch|NetworkError|Load failed|CORS/i.test(message)) {
++    return "**Could not reach the provider.** Check the Base URL and your network connection in **AI settings**.";
++  }
++  return `**Error:** ${message}`;
++}
++
++function keyErrorNeedsSettings(error) {
++  const message = String(error?.message || error || "");
++  return /401|invalid_api_key|Unauthorized|no valid api key|Failed to fetch|NetworkError|Load failed/i.test(
++    message
++  );
 +}
 +
 +function buildSystemPrompt(agent = false) {
@@ -3434,14 +3560,20 @@ index 00000000..d7ce4d93
 +  if (getBoolPref(PREF.autopilot, false)) {
 +    return runAgent(trimmed);
 +  }
++  if (!isAiConfigured()) {
++    showSettings(false);
++    addUserMessage(trimmed);
++    dom.input.value = "";
++    autoGrowInput();
++    const view = createAssistantView();
++    view.status.hidden = true;
++    renderSetupCard(view);
++    updateWelcome();
++    return;
++  }
 +  state.session.objectives.push(trimmed);
 +  const cfg = getProviderConfig();
 +  const key = getKey(cfg.provider);
-+  if (!key && cfg.provider !== "compatible") {
-+    showSettings(true);
-+    dom.status.textContent = "Add an API key for this provider.";
-+    return;
-+  }
 +  showSettings(false);
 +
 +  let userContent = trimmed;
@@ -3533,11 +3665,16 @@ index 00000000..d7ce4d93
 +    if (error.name === "AbortError") {
 +      assistant.content += "\n\n_[stopped]_";
 +    } else {
-+      assistant.content += `\n\n**Error:** ${error.message}`;
++      assistant.content += `\n\n${friendlyError(error)}`;
 +    }
 +    view.body.innerHTML = renderMarkdown(assistant.content);
 +    view.timing = formatTiming(performance.now() - started);
 +    attachAssistantActions(view, { text: assistant.content });
++    if (keyErrorNeedsSettings(error)) {
++      view.actions?.prepend(
++        actionButton("Open AI settings", () => showSettings(true))
++      );
++    }
 +  } finally {
 +    stopStatusRotation(view);
 +    setStreaming(false);
@@ -3787,9 +3924,15 @@ index 00000000..d7ce4d93
 +async function runAgent(text) {
 +  const cfg = getProviderConfig();
 +  const key = getKey(cfg.provider);
-+  if (!key && cfg.provider !== "compatible") {
-+    showSettings(true);
-+    dom.status.textContent = "Add an API key for this provider.";
++  if (!isAiConfigured()) {
++    showSettings(false);
++    addUserMessage(text.trim());
++    dom.input.value = "";
++    autoGrowInput();
++    const view = createAssistantView();
++    view.status.hidden = true;
++    renderSetupCard(view);
++    updateWelcome();
 +    return;
 +  }
 +  showSettings(false);
@@ -3929,7 +4072,7 @@ index 00000000..d7ce4d93
 +    if (error.name === "AbortError") {
 +      assistant.content = "_[stopped]_";
 +    } else {
-+      assistant.content = `**Error:** ${error.message}`;
++      assistant.content = friendlyError(error);
 +    }
 +    view.body.innerHTML = renderMarkdown(assistant.content);
 +    view.timing = formatTiming(performance.now() - started);
@@ -3938,6 +4081,11 @@ index 00000000..d7ce4d93
 +      text: assistant.content,
 +      allowRegenerate: false,
 +    });
++    if (keyErrorNeedsSettings(error)) {
++      view.actions?.prepend(
++        actionButton("Open AI settings", () => showSettings(true))
++      );
++    }
 +  } finally {
 +    state.messages.push(assistant);
 +    setStreaming(false);
@@ -4317,6 +4465,7 @@ index 00000000..d7ce4d93
 +    dom.key.value = "";
 +  }
 +  loadSettingsIntoUI();
++  updateWelcome();
 +  dom.status.textContent = message;
 +}
 +
@@ -4351,6 +4500,10 @@ index 00000000..d7ce4d93
 +  dom.send = $("chat-send");
 +  dom.stop = $("chat-stop");
 +  dom.report = $("chip-report");
++  dom.welcomeSetup = $("welcome-setup");
++  dom.welcomeReady = $("welcome-ready");
++  dom.welcomeCta = $("welcome-setup-cta");
++  dom.welcomeTraffic = $("welcome-traffic");
 +
 +  dom.close.addEventListener("click", () => {
 +    getBrowserWindow()?.SidebarController?.hide();
@@ -4374,6 +4527,7 @@ index 00000000..d7ce4d93
 +  dom.input.addEventListener("input", autoGrowInput);
 +  renderSuggestions();
 +  updatePageToggle();
++  updateWelcome();
 +
 +  dom.provider.addEventListener("change", () => {
 +    const provider = dom.provider.value;
@@ -4385,6 +4539,7 @@ index 00000000..d7ce4d93
 +      Services.prefs.setStringPref(PREF.model, defaults.model);
 +    }
 +    loadSettingsIntoUI();
++    updateWelcome();
 +  });
 +
 +  dom.autopilot.addEventListener("toggle", () => {
@@ -4407,11 +4562,16 @@ index 00000000..d7ce4d93
 +    state.abortController?.abort();
 +  });
 +  dom.report.addEventListener("click", () => generateReport());
++  dom.welcomeCta?.addEventListener("click", () => showSettings(true));
++  dom.welcomeTraffic?.addEventListener("click", () =>
++    getBrowserWindow()?.SidebarController?.show("viewNullSecTrafficSidebar")
++  );
 +  dom.save.addEventListener("click", saveSettingsFromUI);
 +  dom.clearKey.addEventListener("click", async () => {
 +    const provider = dom.provider.value;
 +    const removed = await setKey(provider, "");
 +    loadSettingsIntoUI();
++    updateWelcome();
 +    dom.status.textContent = removed
 +      ? "API key removed."
 +      : "Could not remove API key.";
@@ -4463,6 +4623,7 @@ index 00000000..d7ce4d93
 +    console.error("NullSec: key refresh failed", error);
 +  }
 +  loadSettingsIntoUI();
++  updateWelcome();
 +}
 +
 +init();
