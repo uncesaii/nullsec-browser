@@ -3913,7 +3913,7 @@ index 00000000..a3e0c01b
 +</html>
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..04c00c2d
+index 00000000..89d0ad4b
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
 @@ -0,0 +1,3523 @@
@@ -6622,10 +6622,12 @@ index 00000000..04c00c2d
 +  startStatusRotation(view);
 +
 +  try {
++    let recordedSteps = 0;
 +    const history = state.messages.slice(-24);
 +    const initialPage = await collectPageContext();
 +    if (initialPage) {
 +      stepNo += 1;
++      recordedSteps += 1;
 +      beginWalkStep(view, { n: stepNo, title: "Reading the active page" });
 +      const round = {
 +        n: stepNo,
@@ -6697,21 +6699,16 @@ index 00000000..04c00c2d
 +        }
 +        assistant.content = answer;
 +        if (view.currentStep) {
-+          if (parsed?.thought) {
-+            markWalkStepDone(
-+              view,
-+              {
-+                action: { type: "answer" },
-+                thought: parsed.thought,
-+                result: { ok: true },
-+              },
-+              null
-+            );
-+          } else {
-+            view.currentStep.el.remove();
-+            view.currentStep = null;
-+            stepNo -= 1;
-+          }
++          markWalkStepDone(
++            view,
++            {
++              action: { type: "answer" },
++              thought: parsed?.thought || "Composing the final answer.",
++              result: { ok: true },
++            },
++            null
++          );
++          recordedSteps += 1;
 +        }
 +        finished = true;
 +        break;
@@ -6732,6 +6729,7 @@ index 00000000..04c00c2d
 +        };
 +        state.session.steps.push(skipped);
 +        markWalkStepDone(view, skipped, null);
++        recordedSteps += 1;
 +        const page = await collectPageContext();
 +        observation = [
 +          `[Observation after step ${stepNo}]`,
@@ -6771,6 +6769,7 @@ index 00000000..04c00c2d
 +      stepRecord.title = page?.title || "";
 +      state.session.steps.push(stepRecord);
 +      markWalkStepDone(view, stepRecord, page);
++      recordedSteps += 1;
 +      if (page?.text) {
 +        captureFlags(page.text, page.url);
 +      }
@@ -6795,7 +6794,7 @@ index 00000000..04c00c2d
 +    captureFlags(assistant.content, getActiveTabInfo().url);
 +    view.body.innerHTML = renderMarkdown(assistant.content);
 +    view.timing = formatTiming(performance.now() - started);
-+    finalizeReasoning(view, performance.now() - started, stepNo);
++    finalizeReasoning(view, performance.now() - started, recordedSteps);
 +    attachAssistantActions(view, { text: assistant.content });
 +  } catch (error) {
 +    stopStatusRotation(view);
@@ -6806,7 +6805,7 @@ index 00000000..04c00c2d
 +    }
 +    view.body.innerHTML = renderMarkdown(assistant.content);
 +    view.timing = formatTiming(performance.now() - started);
-+    finalizeReasoning(view, performance.now() - started, stepNo, true);
++    finalizeReasoning(view, performance.now() - started, recordedSteps, true);
 +    attachAssistantActions(view, {
 +      text: assistant.content,
 +      allowRegenerate: false,
@@ -7440,6 +7439,7 @@ index 00000000..04c00c2d
 +}
 +
 +init();
++
 diff --git a/browser/components/nullsec/traffic.css b/browser/components/nullsec/traffic.css
 new file mode 100644
 index 00000000..42a00123
