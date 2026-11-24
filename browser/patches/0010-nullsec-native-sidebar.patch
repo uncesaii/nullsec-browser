@@ -3936,10 +3936,10 @@ index 00000000..a94caa61
 +</html>
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..6f82e30e
+index 00000000..154ebcfa
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
-@@ -0,0 +1,3984 @@
+@@ -0,0 +1,4051 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -4068,7 +4068,7 @@ index 00000000..6f82e30e
 +  '- decode: {"type":"decode","encoding":"base64|hex|url|html|rot13|binary|reverse","text":"..."}',
 +  '- encode: {"type":"encode","encoding":"base64|hex|url","text":"..."}',
 +  '- hash: {"type":"hash","algo":"sha1|sha256|sha512","text":"..."}',
-+  '- jwt: {"type":"jwt","token":"eyJ..."}  (decode header + payload)',
++  '- jwt: {"type":"jwt","token":"eyJ..."} to decode, or {"type":"jwt","secret":"...","payload":{"user":"admin","role":"admin"}} to forge an HS256 token',
 +  '- note: {"type":"note","text":"observation, credential, endpoint, dead end"}',
 +  '- history: {"type":"history"}  (review recent actions)',
 +  '- flag: {"type":"flag","value":"FLAG{...}","note":"where it was found"}',
@@ -5841,6 +5841,9 @@ index 00000000..6f82e30e
 +  if (action.type === "jwt" && result.payload) {
 +    return `<div class="walk-section"><div class="walk-section-title">JWT</div><pre class="walk-pre">${escapeHtml(JSON.stringify({ header: result.header, payload: result.payload }, null, 2))}</pre></div>`;
 +  }
++  if (action.type === "jwt" && result.token) {
++    return `<div class="walk-section"><div class="walk-section-title">Forged JWT</div><pre class="walk-pre">${escapeHtml(result.token)}</pre></div>`;
++  }
 +  if ((action.type === "note" || action.type === "hypothesis") && result.note) {
 +    return `<div class="walk-section"><div class="walk-section-title">Note</div><pre class="walk-pre">${escapeHtml(result.note)}</pre></div>`;
 +  }
@@ -6361,8 +6364,19 @@ index 00000000..6f82e30e
 +    case "forward":
 +      win.gBrowser.goForward();
 +      return { ok: true };
-+    case "read":
-+      return { ok: true };
++    case "read": {
++      const page = await collectPageContext();
++      if (!page) {
++        return { ok: true, text: "(no page context available)" };
++      }
++      return {
++        ok: true,
++        url: page.url,
++        title: page.title,
++        text: page.text.slice(0, 3000),
++        controls: page.controls,
++      };
++    }
 +    case "flag": {
 +      const value = String(action.value || "").trim();
 +      if (!value) {
@@ -6518,6 +6532,40 @@ index 00000000..6f82e30e
 +        : { ok: false, error: "unsupported hash (use sha1/sha256/sha512)" };
 +    }
 +    case "jwt": {
++      if (action.secret && action.payload) {
++        try {
++          const header = action.header || { alg: "HS256", typ: "JWT" };
++          const payload =
++            typeof action.payload === "string"
++              ? JSON.parse(action.payload)
++              : action.payload;
++          const b64u = obj =>
++            btoa(unescape(encodeURIComponent(JSON.stringify(obj))))
++              .replace(/\+/g, "-")
++              .replace(/\//g, "_")
++              .replace(/=+$/, "");
++          const signingInput = `${b64u(header)}.${b64u(payload)}`;
++          const hmacKey = await crypto.subtle.importKey(
++            "raw",
++            new TextEncoder().encode(String(action.secret)),
++            { name: "HMAC", hash: "SHA-256" },
++            false,
++            ["sign"]
++          );
++          const signature = await crypto.subtle.sign(
++            "HMAC",
++            hmacKey,
++            new TextEncoder().encode(signingInput)
++          );
++          const sig = btoa(String.fromCharCode(...new Uint8Array(signature)))
++            .replace(/\+/g, "-")
++            .replace(/\//g, "_")
++            .replace(/=+$/, "");
++          return { ok: true, token: `${signingInput}.${sig}` };
++        } catch (error) {
++          return { ok: false, error: `jwt sign failed: ${error.message}` };
++        }
++      }
 +      const decoded = decodeJwt(action.token || action.text);
 +      return decoded
 +        ? { ok: true, ...decoded }
@@ -6747,6 +6795,14 @@ index 00000000..6f82e30e
 +    findings.slice(-10).forEach(finding =>
 +      lines.push(`- [${finding.severity}] ${finding.title}`)
 +    );
++  }
++  const recent = (session.observations || []).slice(-3);
++  if (recent.length) {
++    lines.push("[Recent tool results - reuse anything useful, e.g. leaked secrets]");
++    recent.forEach((item, index) => {
++      lines.push(`--- result ${index + 1} ---`);
++      lines.push(String(item).slice(0, 900));
++    });
 +  }
 +  return lines.join("\n");
 +}
@@ -7095,12 +7151,12 @@ index 00000000..6f82e30e
 +      const parsed = extractJson(raw) || parseDsml(raw);
 +      if (!parsed || !parsed.action || parsed.action.type === "done") {
 +        const answer = parsed?.answer || raw;
-+        const blocked =
-+          /block(ed)?|stuck|cannot|can'?t|unable|no further|exhaust|out of (ideas|options)|need (more )?(info|hint|credentials|authorization|scope)|not (exploitable|vulnerable)|no flag/i.test(
++        const handoff =
++          /(need (more )?(info|hint|credentials|authorization|scope|access))|(please (provide|confirm|authorize))|(which .* should i)|(do you want me to)/i.test(
 +            String(answer || "")
 +          );
-+        const hunting = NullSecStore.getFlags().length === 0;
-+        if (!blocked && hunting && nudges < 3) {
++        const claimed = NullSecStore.getFlags().length > 0;
++        if (!handoff && !claimed) {
 +          nudges += 1;
 +          if (view.currentStep) {
 +            view.currentStep.el.remove();
@@ -7110,11 +7166,12 @@ index 00000000..6f82e30e
 +          const page = await collectPageContext();
 +          observation = [
 +            `[Observation after step ${stepNo}]`,
-+            nudges === 1 && evidenceCount === 0
-+              ? "You tried to finish without any validating action or evidence."
-+              : "You tried to finish but the objective is not confirmed yet (no flag recovered).",
-+            "Do not give up. Recap what you tried, then PIVOT to a new approach: a different vulnerability class, parameter, payload, endpoint, or method.",
-+            "Use search then knowledge to load the matching HackSkills playbook, and record flags only after reading the response that contains them.",
++            nudges <= 5
++              ? "You tried to finish but the objective is not confirmed yet (no flag recovered)."
++              : "You kept trying to finish without a flag. Do NOT finish the task.",
++            "Do not give up. Recap what you tried, then PIVOT to a genuinely new approach: a different vulnerability class, parameter, payload, endpoint, or method.",
++            "Review [Recent tool results] above - you may already hold a leaked secret, token, endpoint, or credential that unlocks the next stage.",
++            "Use search then knowledge to load the matching playbook, and record flags only after reading the response that contains them.",
 +            "Current page:",
 +            page?.text ? page.text.slice(0, 3000) : "(no page text)",
 +          ].join("\n");
@@ -7154,14 +7211,24 @@ index 00000000..6f82e30e
 +        state.session.steps.push(skipped);
 +        markWalkStepDone(view, skipped, null);
 +        recordedSteps += 1;
++        stuck += 1;
 +        const page = await collectPageContext();
 +        observation = [
 +          `[Observation after step ${stepNo}]`,
-+          "Skipped: you repeated the same action with no new result.",
-+          "Change approach - a new parameter, payload, HTTP method, target element, or vulnerability class (use search then knowledge).",
-+          "Current page:",
-+          page?.text ? page.text.slice(0, 3000) : "(no page text)",
++          `Skipped: you repeated ${JSON.stringify(parsed.action)} with no new result (${stuck} time(s)).`,
++          stuck >= 3
++            ? "STOP repeating. You MUST choose a DIFFERENT action type now. Review [Recent tool results] above - you may already hold the secret, token, endpoint, or credential you need. Take the next concrete step."
++            : "Change approach - a new parameter, payload, HTTP method, target element, or vulnerability class (use search then knowledge).",
++          page?.text ? `Current page:\n${page.text.slice(0, 2000)}` : "(no page text)",
 +        ].join("\n");
++        if (stuck >= 3) {
++          state.session.reflections.push(
++            `Kept repeating ${describeAction(parsed.action)}`
++          );
++          if (state.session.reflections.length > 5) {
++            state.session.reflections.shift();
++          }
++        }
 +        continue;
 +      }
 +      if (
