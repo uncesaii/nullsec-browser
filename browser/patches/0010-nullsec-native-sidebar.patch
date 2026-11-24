@@ -180,10 +180,10 @@ index 2b957018..dd2dee24 100644
      "PageInfoPreviewChild.sys.mjs",
      "PageStyleChild.sys.mjs",
 diff --git a/browser/app/profile/000-mullvad-browser.js b/browser/app/profile/000-mullvad-browser.js
-index 3636c5d0..e973c768 100644
+index 3636c5d0..83218b28 100644
 --- a/browser/app/profile/000-mullvad-browser.js
 +++ b/browser/app/profile/000-mullvad-browser.js
-@@ -56,3 +56,21 @@ pref("browser.selectiveSavingMode.enabled", false);
+@@ -56,3 +56,22 @@ pref("browser.selectiveSavingMode.enabled", false);
  #else
  pref("browser.selectiveSavingMode.enabled", true);
  #endif
@@ -203,8 +203,9 @@ index 3636c5d0..e973c768 100644
 +pref("browser.nullsec.ai.pageContext", true);
 +pref("browser.nullsec.ai.modelId", "openai/gpt-4o-mini");
 +pref("browser.nullsec.ai.disabled", "");
-+pref("browser.nullsec.ai.effort", "max");
++pref("browser.nullsec.ai.effort", "auto");
 +pref("browser.nullsec.ai.anonymous", true);
++
 diff --git a/browser/components/DesktopActorRegistry.sys.mjs b/browser/components/DesktopActorRegistry.sys.mjs
 index 7266cae6..83d9dd17 100644
 --- a/browser/components/DesktopActorRegistry.sys.mjs
@@ -3488,10 +3489,10 @@ index 00000000..1c4060fb
 \ No newline at end of file
 diff --git a/browser/components/nullsec/sidebar.html b/browser/components/nullsec/sidebar.html
 new file mode 100644
-index 00000000..a3e0c01b
+index 00000000..a94caa61
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.html
-@@ -0,0 +1,419 @@
+@@ -0,0 +1,420 @@
 +<!-- This Source Code Form is subject to the terms of the Mozilla Public
 +   - License, v. 2.0. If a copy of the MPL was not distributed with this
 +   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
@@ -3678,7 +3679,7 @@ index 00000000..a3e0c01b
 +              aria-expanded="false"
 +              title="Reasoning effort"
 +            >
-+              <span id="effort-pill-label">Max</span>
++              <span id="effort-pill-label">Auto</span>
 +              <svg class="pill-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
 +            </button>
 +          </div>
@@ -3724,6 +3725,7 @@ index 00000000..a3e0c01b
 +      </div>
 +
 +      <div id="effort-menu" class="popover popover-sm" hidden>
++        <button class="popover-option" data-effort="auto" type="button"><span class="popover-option-main"><span class="popover-option-title">Auto</span><span class="popover-option-sub">Adapts to the task</span></span><svg class="popover-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
 +        <button class="popover-option" data-effort="off" type="button"><span class="popover-option-main"><span class="popover-option-title">Off</span><span class="popover-option-sub">Fastest, lowest cost</span></span><svg class="popover-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
 +        <button class="popover-option" data-effort="low" type="button"><span class="popover-option-main"><span class="popover-option-title">Low</span><span class="popover-option-sub">Quick answers</span></span><svg class="popover-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
 +        <button class="popover-option" data-effort="medium" type="button"><span class="popover-option-main"><span class="popover-option-title">Medium</span><span class="popover-option-sub">Balanced</span></span><svg class="popover-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
@@ -3913,10 +3915,10 @@ index 00000000..a3e0c01b
 +</html>
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..89d0ad4b
+index 00000000..87f176fb
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
-@@ -0,0 +1,3523 @@
+@@ -0,0 +1,3621 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -3960,12 +3962,53 @@ index 00000000..89d0ad4b
 +};
 +
 +const EFFORT_LABEL = {
++  auto: "Auto",
 +  off: "Off",
 +  low: "Low",
 +  medium: "Medium",
 +  high: "High",
 +  max: "Max",
 +};
++
++const TASK_PATTERNS = {
++  ctf: /\b(ctf|flag|pwn|rev(?:erse|ersing)?|exploit|payload|foothold|privesc|privilege escalation|post[- ]?exploit|shell|rce|ssrf|sqli|sql injection|xss|xxe|ssti|idor|bola|lfi|rfi|csrf|deseriali|buffer overflow|heap|rop|shellcode|jwt|oauth|bypass|vuln(?:erabilit)?(?:y|ies)?|bug ?bounty|pentest|recon|nmap|ffuf|fuzz|burp|sqlmap|wpscan|hashcat|ghidra|ida|radare|gdb|crack|base64|xor|privilege)\b/i,
++  quiz: /\b(what is|what are|who is|who was|when (?:did|was|is)|where is|define|definition of|list the|name the|which (?:of|one)|true or false|multiple choice|quiz|exam|answer the following|fill in the blank|solve for)\b/i,
++  code: /\b(code|function|script|snippet|regex|implement|refactor|debug|stack trace|compile|python|javascript|typescript|rust|golang|bash|powershell|sql query|api endpoint|write a (?:program|script|function))\b/i,
++};
++
++function classifyQuery(text) {
++  const value = String(text || "");
++  if (TASK_PATTERNS.ctf.test(value)) {
++    return {
++      type: "ctf",
++      temperature: 0.2,
++      directive:
++        "Task mode: offensive security / CTF / bug bounty. Be precise and operational. Follow the phase model, load the matching HackSkills playbook, and back every claim with an observed artifact.",
++    };
++  }
++  if (TASK_PATTERNS.quiz.test(value)) {
++    return {
++      type: "quiz",
++      temperature: 0.1,
++      directive:
++        "Task mode: direct question answering (quiz/exam). Give the answer first in one clear line, then a short justification. Do not run browser actions unless the user explicitly asks.",
++    };
++  }
++  if (TASK_PATTERNS.code.test(value)) {
++    return {
++      type: "code",
++      temperature: 0.3,
++      directive:
++        "Task mode: coding. Provide correct, runnable code with a concise explanation and note important edge cases.",
++    };
++  }
++  return {
++    type: "general",
++    temperature: 0.6,
++    directive:
++      "Task mode: general assistant. Be clear, accurate, and concise; use tools only when they add value.",
++  };
++}
 +
 +const MAX_STEPS = 16;
 +
@@ -4675,9 +4718,9 @@ index 00000000..89d0ad4b
 +}
 +
 +function renderEffortPill() {
-+  const effort = Services.prefs.getStringPref(PREF.effort, "max");
++  const effort = Services.prefs.getStringPref(PREF.effort, "auto");
 +  if (dom.effortPillLabel) {
-+    dom.effortPillLabel.textContent = EFFORT_LABEL[effort] || "Max";
++    dom.effortPillLabel.textContent = EFFORT_LABEL[effort] || "Auto";
 +  }
 +  markPopoverOptions(dom.effortMenu, "effort", effort);
 +}
@@ -4688,9 +4731,12 @@ index 00000000..89d0ad4b
 +}
 +
 +function applyEffort(effort) {
-+  const value = EFFORT_TEMP[effort] ? effort : "max";
++  const value =
++    effort === "auto" || EFFORT_TEMP[effort] ? effort : "auto";
 +  Services.prefs.setStringPref(PREF.effort, value);
-+  Services.prefs.setStringPref(PREF.temperature, EFFORT_TEMP[value]);
++  if (value !== "auto") {
++    Services.prefs.setStringPref(PREF.temperature, EFFORT_TEMP[value]);
++  }
 +  renderEffortPill();
 +  if (!dom.settings.hidden) {
 +    loadSettingsIntoUI();
@@ -5304,7 +5350,7 @@ index 00000000..89d0ad4b
 +  finishConnect(id, baseurl);
 +}
 +
-+function buildSystemPrompt(agent = false) {
++function buildSystemPrompt(agent = false, extra = "") {
 +  const cfg = getProviderConfig();
 +  const tab = getActiveTabInfo();
 +  let prompt = cfg.system || DEFAULT_SYSTEM;
@@ -5324,6 +5370,9 @@ index 00000000..89d0ad4b
 +  }
 +  if (agent) {
 +    prompt += `\n\n${METHODOLOGY}\n\n${AGENT_PROTOCOL}`;
++  }
++  if (extra) {
++    prompt += `\n\n${extra}`;
 +  }
 +  return prompt;
 +}
@@ -6073,6 +6122,11 @@ index 00000000..89d0ad4b
 +  state.session.objectives.push(trimmed);
 +  const cfg = getProviderConfig();
 +  const key = getKey(cfg.provider);
++  const task = classifyQuery(trimmed);
++  if (Services.prefs.getStringPref(PREF.effort, "auto") === "auto") {
++    cfg.temperature = String(task.temperature);
++  }
++  const system = buildSystemPrompt(false, task.directive);
 +  showSettings(false);
 +
 +  let userContent = trimmed;
@@ -6134,6 +6188,7 @@ index 00000000..89d0ad4b
 +      key,
 +      messages: history,
 +      signal: state.abortController.signal,
++      system,
 +      onToken: token => {
 +        assistant.content += token;
 +        if (firstToken) {
@@ -6618,7 +6673,11 @@ index 00000000..89d0ad4b
 +  state.abortController = new AbortController();
 +  const signal = state.abortController.signal;
 +  setStreaming(true);
-+  const system = buildSystemPrompt(true);
++  const task = classifyQuery(text);
++  if (Services.prefs.getStringPref(PREF.effort, "auto") === "auto") {
++    cfg.temperature = String(task.temperature);
++  }
++  const system = buildSystemPrompt(true, task.directive);
 +  startStatusRotation(view);
 +
 +  try {
@@ -6789,8 +6848,7 @@ index 00000000..89d0ad4b
 +        : "_Stopped after reaching the step limit._";
 +    }
 +    assistant.content =
-+      cleanAssistantText(assistant.content) ||
-+      "_No actionable result. Review the walkthrough for the steps performed._";
++      cleanAssistantText(assistant.content) || summarizeSession();
 +    captureFlags(assistant.content, getActiveTabInfo().url);
 +    view.body.innerHTML = renderMarkdown(assistant.content);
 +    view.timing = formatTiming(performance.now() - started);
@@ -6824,6 +6882,48 @@ index 00000000..89d0ad4b
 +    scheduleReport();
 +    scrollChat();
 +  }
++}
++
++function summarizeSession() {
++  const lines = [];
++  const objective = state.session.objectives[state.session.objectives.length - 1];
++  if (objective) {
++    lines.push(`**Objective:** ${objective}`);
++  }
++  const steps = state.session.steps.slice(-12);
++  if (steps.length) {
++    lines.push("", "**Steps performed:**");
++    for (const step of steps) {
++      const label = describeAction(step.action || {});
++      lines.push(`- ${label}${step.url ? ` - ${step.url}` : ""}`);
++    }
++  }
++  const findings = state.session.findings || [];
++  if (findings.length) {
++    lines.push("", "**Findings:**");
++    findings.forEach(finding => {
++      lines.push(
++        `- [${String(finding.severity || "info").toUpperCase()}] ${finding.title}${
++          finding.evidence ? ` - ${finding.evidence}` : ""
++        }`
++      );
++    });
++  }
++  const flags = NullSecStore.getFlags();
++  if (flags.length) {
++    lines.push(
++      "",
++      `**Flags:** ${flags.map(flag => `\`${flag.value}\``).join(", ")}`
++    );
++  }
++  if (!lines.length) {
++    return "I could not complete the objective with the steps available. Tell me the target or the next hint and I will continue.";
++  }
++  lines.push(
++    "",
++    "_The model did not return a written answer, so this is the recorded work so far._"
++  );
++  return lines.join("\n");
 +}
 +
 +function buildReportMarkdown() {
@@ -7415,7 +7515,7 @@ index 00000000..89d0ad4b
 +
 +async function init() {
 +  initChrome();
-+  const effort = Services.prefs.getStringPref(PREF.effort, "max");
++  const effort = Services.prefs.getStringPref(PREF.effort, "auto");
 +  if (EFFORT_TEMP[effort]) {
 +    Services.prefs.setStringPref(PREF.temperature, EFFORT_TEMP[effort]);
 +  }
