@@ -3913,10 +3913,10 @@ index 00000000..a3e0c01b
 +</html>
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..cf2a1330
+index 00000000..04c00c2d
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
-@@ -0,0 +1,3410 @@
+@@ -0,0 +1,3523 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -5311,6 +5311,12 @@ index 00000000..cf2a1330
 +  if (tab.url) {
 +    prompt += `\n\n[Current tab]\nTitle: ${tab.title}\nURL: ${tab.url}`;
 +  }
++  const autopilot = getBoolPref(PREF.autopilot, false);
++  prompt += `\n\n[Browser control]\nAutopilot is ${autopilot ? "ON" : "OFF"}. ${
++    autopilot
++      ? "You can operate the browser directly through the action protocol: navigate, click, type, scroll, and send or modify HTTP requests yourself, then observe the results."
++      : "You cannot operate the browser. Do NOT emit action objects, JSON actions, or tool-call markup (no DSML). Reply only with analysis and the exact manual steps, commands, and payloads the user should run."
++  }`;
 +  try {
 +    prompt += `\n\n[Knowledge base]\n${NullSecSkills.count()} offline security skills are available (HackSkills, MITRE ATT&CK, OWASP, ISECOM, standards). Use the "search" action to find techniques and "knowledge" to read a specific skill.`;
 +  } catch (error) {
@@ -6138,7 +6144,7 @@ index 00000000..cf2a1330
 +        const now = performance.now();
 +        if (now - lastRender > 50) {
 +          lastRender = now;
-+          view.body.innerHTML = renderMarkdown(assistant.content);
++          view.body.innerHTML = renderMarkdown(stripToolMarkup(assistant.content));
 +          view.body.appendChild(cursor);
 +        }
 +        scrollChat();
@@ -6151,6 +6157,8 @@ index 00000000..cf2a1330
 +    }
 +    stopStatusRotation(view);
 +    setAssistantStatus(view, null);
++    assistant.content =
++      cleanAssistantText(assistant.content) || "_No visible answer was returned._";
 +    view.body.innerHTML = renderMarkdown(assistant.content);
 +    view.timing = formatTiming(performance.now() - started);
 +    captureFlags(assistant.content, getActiveTabInfo().url);
@@ -6163,6 +6171,7 @@ index 00000000..cf2a1330
 +    } else {
 +      assistant.content += `\n\n${friendlyError(error)}`;
 +    }
++    assistant.content = cleanAssistantText(assistant.content);
 +    view.body.innerHTML = renderMarkdown(assistant.content);
 +    view.timing = formatTiming(performance.now() - started);
 +    attachAssistantActions(view, { text: assistant.content });
@@ -6421,8 +6430,110 @@ index 00000000..cf2a1330
 +  }
 +}
 +
-+function cleanAssistantText(text) {
++function dsmlToAction(name, params) {
++  const type = String(name || "")
++    .toLowerCase()
++    .replace(/[^a-z]/g, "");
++  switch (type) {
++    case "search":
++      return { type: "search", query: params.query || params.q || "" };
++    case "knowledge":
++      return {
++        type: "knowledge",
++        id: params.id || params.skill || params.name || "",
++      };
++    case "navigate":
++      return { type: "navigate", url: params.url || "" };
++    case "click":
++      return { type: "click", selector: params.selector || "" };
++    case "type":
++    case "fill":
++      return {
++        type: "type",
++        selector: params.selector || "",
++        text: params.text || params.value || "",
++        submit: String(params.submit) === "true",
++      };
++    case "scroll":
++      return { type: "scroll", y: Number(params.y) || 600 };
++    case "read":
++      return { type: "read" };
++    case "flag":
++      return {
++        type: "flag",
++        value: params.value || params.flag || "",
++        note: params.note || "",
++      };
++    case "finding":
++      return {
++        type: "finding",
++        title: params.title || "",
++        severity: params.severity || "info",
++        evidence: params.evidence || "",
++      };
++    case "report":
++      return { type: "report" };
++    case "request":
++    case "http":
++    case "fetch": {
++      let headers = {};
++      if (params.headers) {
++        try {
++          headers = JSON.parse(params.headers);
++        } catch {}
++      }
++      return {
++        type: "request",
++        method: params.method || "GET",
++        url: params.url || "",
++        headers,
++        body: params.body,
++      };
++    }
++    default:
++      return null;
++  }
++}
++
++function parseDsml(raw) {
++  const src = String(raw || "");
++  if (!/DSML/i.test(src)) {
++    return null;
++  }
++  const norm = src
++    .replace(/<\/\s*[\|｜]+\s*DSML\s*[\|｜]+\s*/gi, "</")
++    .replace(/<\s*[\|｜]+\s*DSML\s*[\|｜]+\s*/gi, "<");
++  const invoke = /<invoke\s+name="([^"]+)"[^>]*>([\s\S]*?)<\/invoke>/i.exec(norm);
++  if (!invoke) {
++    return null;
++  }
++  const params = {};
++  const paramRe = /<parameter\s+name="([^"]+)"[^>]*>([\s\S]*?)<\/parameter>/gi;
++  let match;
++  while ((match = paramRe.exec(invoke[2]))) {
++    params[match[1]] = match[2].trim();
++  }
++  const action = dsmlToAction(invoke[1], params);
++  return action ? { thought: "", action } : null;
++}
++
++function stripToolMarkup(text) {
 +  let out = String(text || "");
++  const barrier = "[\\|｜]+\\s*DSML\\s*[\\|｜]+";
++  out = out.replace(
++    new RegExp(`<\\s*${barrier}[\\s\\S]*?<\\/\\s*${barrier}\\s*call\\s*>`, "gi"),
++    ""
++  );
++  out = out.replace(new RegExp(`<\\s*${barrier}[\\s\\S]*`, "gi"), "");
++  out = out
++    .split(/\r?\n/)
++    .filter(line => !/[\|｜]{2}\s*DSML\s*[\|｜]{2}/i.test(line))
++    .join("\n");
++  return out.replace(/\n{3,}/g, "\n\n").trim();
++}
++
++function cleanAssistantText(text) {
++  let out = stripToolMarkup(text);
 +  out = out.replace(/```(?:json)?\s*[\s\S]*?```/gi, "");
 +  out = out.replace(/\{\s*"(?:thought|action|answer)"[\s\S]*?\}\s*$/g, "");
 +  out = out
@@ -6562,7 +6673,7 @@ index 00000000..cf2a1330
 +          scrollChat();
 +        },
 +      });
-+      const parsed = extractJson(raw);
++      const parsed = extractJson(raw) || parseDsml(raw);
 +      if (!parsed || !parsed.action || parsed.action.type === "done") {
 +        const answer = parsed?.answer || raw;
 +        if (nudges < 1 && evidenceCount === 0 && attempt < MAX_STEPS) {
@@ -6678,7 +6789,9 @@ index 00000000..cf2a1330
 +        ? "Done."
 +        : "_Stopped after reaching the step limit._";
 +    }
-+    assistant.content = cleanAssistantText(assistant.content) || "Task complete.";
++    assistant.content =
++      cleanAssistantText(assistant.content) ||
++      "_No actionable result. Review the walkthrough for the steps performed._";
 +    captureFlags(assistant.content, getActiveTabInfo().url);
 +    view.body.innerHTML = renderMarkdown(assistant.content);
 +    view.timing = formatTiming(performance.now() - started);
