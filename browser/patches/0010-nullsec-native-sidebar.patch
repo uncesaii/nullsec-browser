@@ -3936,10 +3936,10 @@ index 00000000..a94caa61
 +</html>
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..419cc01a
+index 00000000..99407f91
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
-@@ -0,0 +1,4123 @@
+@@ -0,0 +1,4171 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -4071,6 +4071,7 @@ index 00000000..419cc01a
 +  '- jwt: {"type":"jwt","token":"eyJ..."} to decode, or {"type":"jwt","secret":"...","payload":{"user":"admin","role":"admin"}} to forge an HS256 token',
 +  '- note: {"type":"note","text":"observation, credential, endpoint, dead end"}',
 +  '- history: {"type":"history"}  (review recent actions)',
++  '- cookies: {"type":"cookies"}  (read the active tab cookies, including HttpOnly - use before forging a session/JWT)',
 +  '- flag: {"type":"flag","value":"FLAG{...}","note":"where it was found"}',
 +  '- finding: {"type":"finding","title":"IDOR on /api/item","severity":"high","evidence":"request + response status/body"}',
 +  '- report: {"type":"report"}',
@@ -5849,6 +5850,13 @@ index 00000000..419cc01a
 +  if ((action.type === "note" || action.type === "hypothesis") && result.note) {
 +    return `<div class="walk-section"><div class="walk-section-title">Note</div><pre class="walk-pre">${escapeHtml(result.note)}</pre></div>`;
 +  }
++  if (action.type === "cookies" && Array.isArray(result.cookies)) {
++    return `<div class="walk-section"><div class="walk-section-title">Cookies</div><pre class="walk-pre">${escapeHtml(
++      result.cookies
++        .map(cookie => `${cookie.name}=${cookie.value}${cookie.httpOnly ? " (HttpOnly)" : ""}`)
++        .join("\n") || "(none)"
++    )}</pre></div>`;
++  }
 +  if (page && page.text) {
 +    const snippet = `${page.title ? `${page.title}\n` : ""}${page.text.slice(0, 500)}`;
 +    return `<div class="walk-section"><div class="walk-section-title">Observation</div><pre class="walk-pre">${escapeHtml(snippet)}</pre></div>`;
@@ -6589,6 +6597,38 @@ index 00000000..419cc01a
 +      });
 +      return { ok: true, note: text };
 +    }
++    case "cookies": {
++      const tab = getActiveTabInfo();
++      let uri;
++      try {
++        uri = Services.io.newURI(tab.url);
++      } catch {
++        return { ok: false, error: "no active http(s) tab" };
++      }
++      const list = [];
++      try {
++        const cookies = Services.cookies.getCookiesForURI(
++          uri,
++          false,
++          false,
++          false,
++          {}
++        );
++        for (const cookie of cookies) {
++          list.push({
++            name: cookie.name,
++            value: cookie.value,
++            path: cookie.path,
++            domain: cookie.host,
++            httpOnly: cookie.isHttpOnly,
++            secure: cookie.isSecure,
++          });
++        }
++      } catch (error) {
++        return { ok: false, error: `cookie read failed: ${error.message}` };
++      }
++      return { ok: true, cookies: list };
++    }
 +    case "history": {
 +      return {
 +        ok: true,
@@ -6666,6 +6706,8 @@ index 00000000..419cc01a
 +      return `Noting: ${String(action.text || "").slice(0, 60)}`;
 +    case "history":
 +      return "Reviewing action history";
++    case "cookies":
++      return "Reading cookies";
 +    case "recap":
 +      return "Recapping and pivoting";
 +    default:
@@ -6786,6 +6828,10 @@ index 00000000..419cc01a
 +  if (tokenMatch && secretMatch) {
 +    hints.push(
 +      `You hold a JWT and a leaked secret ("${secretMatch[1]}"). Forge an admin token NOW with the jwt action: {"type":"jwt","secret":"${secretMatch[1]}","payload":{"user":"admin","role":"admin"}} then request the protected admin endpoint with header {"Cookie":"token=<returned token>"}.`
++    );
++  } else if (secretMatch) {
++    hints.push(
++      `You leaked a signing secret ("${secretMatch[1]}"). If this app issues JWTs, read the current token with the cookies action, then forge an admin token with {"type":"jwt","secret":"${secretMatch[1]}","payload":{"user":"admin","role":"admin"}} and replay it as header {"Cookie":"token=<forged token>"} to the protected/admin endpoint.`
 +    );
 +  }
 +  if (/\b(?:id|uid|voucher|account|order|invoice)=\d+/i.test(seen) || /\/vouchers\b/i.test(seen)) {
@@ -6957,6 +7003,8 @@ index 00000000..419cc01a
 +      return { type, text: params.text || params.note || params.title || "" };
 +    case "history":
 +      return { type: "history" };
++    case "cookies":
++      return { type: "cookies" };
 +    default:
 +      return null;
 +  }
