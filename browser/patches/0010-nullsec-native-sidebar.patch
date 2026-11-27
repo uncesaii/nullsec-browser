@@ -4499,10 +4499,10 @@ index 00000000..27acb951
 +</html>
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..1550bee3
+index 00000000..446da77b
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
-@@ -0,0 +1,5119 @@
+@@ -0,0 +1,5194 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -4619,6 +4619,8 @@ index 00000000..1550bee3
 +  '- navigate: {"type":"navigate","url":"https://..."}',
 +  '- refresh: {"type":"refresh"}  (reload the active tab)',
 +  '- tabs: {"type":"tabs","op":"list"} | {"type":"tabs","op":"switch","index":1} | {"type":"tabs","op":"new","url":"https://..."} | {"type":"tabs","op":"close","index":1}',
++  '- websearch: {"type":"websearch","query":"..."}  (drive the browser: search the web, then read/click results, scroll, go back)',
++  '- ask: {"type":"ask","question":"..."}  (ask the user one clarifying question when the request is ambiguous)',
 +  '- click: {"type":"click","selector":"<selector from INTERACTIVE ELEMENTS>"}',
 +  '- type: {"type":"type","selector":"...","text":"...","submit":true}',
 +  '- scroll: {"type":"scroll","y":600}',
@@ -6166,6 +6168,7 @@ index 00000000..1550bee3
 +  }
 +  if (autopilot) {
 +    prompt += `\n\n[Sandbox]\nA Kali Linux sandbox is attached over the shell/session/files actions (see the action protocol). Available toolchain includes ${TOOLCHAIN_SUMMARY}\n\nPrefer "shell" for pwn/rev/crypto/forensics and heavy recon, "session" for interactive tools (nc/gdb/python), and "files" to write scripts and read artifacts. Redirect large output to a file (e.g. > /root/out.txt) and read it with "files".`;
++    prompt += `\n\n[Browser research]\nYou are the web search. For search/find/look-up/current-information/recommendation/reading-list requests, do NOT use the sandbox shell. Use the websearch action (query), then read the results page, click the useful links, scroll, and go back as needed; answer from what you actually observed. Plan first, and ask at most one concise clarifying question if the request is ambiguous.`;
 +  }
 +  if (!agent) {
 +    prompt += `\n\n[Operating doctrine]\n${NULLSEC_SYSTEM_PROMPT}\n\nThis chat is direct Q&A: tools are unavailable. Answer the user directly and do not emit tool calls or JSON actions.`;
@@ -6451,6 +6454,10 @@ index 00000000..1550bee3
 +      return "Reloading the page";
 +    case "tabs":
 +      return `Tabs: ${action.op || "list"}`;
++    case "websearch":
++      return `Searching the web: ${action.query || ""}`;
++    case "ask":
++      return "Asking a clarifying question";
 +    case "scroll":
 +      return "Scrolling the page";
 +    case "back":
@@ -6659,6 +6666,21 @@ index 00000000..1550bee3
 +        active: "Managing tabs",
 +        done: "Tabs",
 +        target: action.op || "list",
++      };
++    case "websearch":
++    case "web":
++      return {
++        icon: "globe",
++        active: "Searching the web",
++        done: "Searched the web",
++        target: action.query || "",
++      };
++    case "ask":
++      return {
++        icon: "note",
++        active: "Asking a question",
++        done: "Asked a question",
++        target: String(action.question || "").slice(0, 60),
 +      };
 +    case "request":
 +      return {
@@ -7070,6 +7092,11 @@ index 00000000..1550bee3
 +      result.entries.map(entry => entry.name || entry.path || "").join("\n")
 +    )}</pre></div>`;
 +  }
++  if ((action.type === "websearch" || action.type === "web") && result.text) {
++    return `<div class="walk-section"><div class="walk-section-title">Web results</div><pre class="walk-pre">${escapeHtml(
++      String(result.text).slice(0, 4000)
++    )}</pre></div>`;
++  }
 +  if (page && page.text) {
 +    const snippet = `${page.title ? `${page.title}\n` : ""}${page.text.slice(0, 500)}`;
 +    return `<div class="walk-section"><div class="walk-section-title">Observation</div><pre class="walk-pre">${escapeHtml(snippet)}</pre></div>`;
@@ -7425,9 +7452,13 @@ index 00000000..1550bee3
 +    /\b(run|execute|exec|scan|recon|nmap|ffuf|nuclei|sqlmap|hydra|curl|shell|terminal|exploit|payload|pwn|flag|target|attack|brute|enumerate|fuzz)\b/i.test(
 +      trimmed
 +    );
++  const wantsResearch =
++    /\b(search|find|look\s*up|google|browse|web|online|latest|news|current|price|weather|release|who\s+won|recommend|reading\s+list|rrl|compare|review)\b/i.test(
++      trimmed
++    );
 +  if (
 +    getBoolPref(PREF.autopilot, false) &&
-+    (routeTask.type === "ctf" || wantsExecution)
++    (routeTask.type === "ctf" || wantsExecution || wantsResearch)
 +  ) {
 +    return runAgent(trimmed);
 +  }
@@ -7714,6 +7745,31 @@ index 00000000..1550bee3
 +      }
 +      return { ok: true, tabs: tabs.map(describeTab) };
 +    }
++    case "websearch":
++    case "web": {
++      const query = String(action.query || action.q || "").trim();
++      if (!query) {
++        return { ok: false, error: "websearch needs query" };
++      }
++      const engine = String(action.engine || "duckduckgo").toLowerCase();
++      const url = engine.includes("google")
++        ? `https://www.google.com/search?q=${encodeURIComponent(query)}`
++        : `https://duckduckgo.com/?q=${encodeURIComponent(query)}&ia=web`;
++      browser.loadURI(Services.io.newURI(url), {
++        triggeringPrincipal: principal,
++      });
++      await sleep(2500);
++      const page = await collectPageContext();
++      return {
++        ok: true,
++        query,
++        engine,
++        url: page?.url || url,
++        title: page?.title || "",
++        text: (page?.text || "").slice(0, 6000),
++        controls: (page?.controls || []).slice(0, 80),
++      };
++    }
 +    case "read": {
 +      const page = await collectPageContext();
 +      if (!page) {
@@ -7924,6 +7980,13 @@ index 00000000..1550bee3
 +        ? { ok: true, ...decoded }
 +        : { ok: false, error: "could not decode JWT" };
 +    }
++    case "ask": {
++      const question = String(action.question || action.text || "").trim();
++      if (!question) {
++        return { ok: false, error: "ask needs a question" };
++      }
++      return { ok: true, question };
++    }
 +    case "note":
 +    case "hypothesis": {
 +      const text = String(action.text || action.title || "").trim();
@@ -8115,6 +8178,10 @@ index 00000000..1550bee3
 +      return "Reloading the page";
 +    case "tabs":
 +      return `Tabs ${action.op || "list"}`;
++    case "websearch":
++      return `Searching the web for ${action.query || ""}`;
++    case "ask":
++      return `Asking: ${String(action.question || "").slice(0, 60)}`;
 +    case "scroll":
 +      return `Scrolling by ${action.y || 600}px`;
 +    case "back":
@@ -8790,6 +8857,14 @@ index 00000000..1550bee3
 +          );
 +          recordedSteps += 1;
 +        }
++        finished = true;
++        break;
++      }
++      if (parsed.action.type === "ask") {
++        assistant.content =
++          parsed.action.question ||
++          parsed.action.text ||
++          "Could you clarify what you need?";
 +        finished = true;
 +        break;
 +      }
