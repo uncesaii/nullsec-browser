@@ -1,4 +1,4 @@
-# Security policy
+﻿# Security policy
 
 ## Supported versions
 
@@ -44,3 +44,24 @@ Good-faith research on your own installation, with no access to other users' dat
 ## Disclosure
 
 We aim to acknowledge reports within 5 business days and coordinate disclosure after a fix is available. Timelines may vary for upstream Firefox or Mullvad issues.
+
+## Cloud sandbox
+
+Agent `shell`, `session`, and `files` actions execute in an E2B-hosted Kali
+sandbox through the local bridge (`sandbox/bridge`). This is opt-in and requires
+an E2B API key.
+
+- The bridge binds to `127.0.0.1:8787` and reads its key from a gitignored `.env`.
+- Sandbox commands run as root inside the sandbox; do not place unrelated
+  secrets, personal files, or provider keys inside it.
+- Commands and files sent to the sandbox are processed by E2B under E2B's terms
+  and data-handling policy. NullSec does not operate a proxy or retain sandbox
+  contents.
+- The sandbox cannot reach the host's loopback; run local lab targets inside the
+  sandbox or use a public target.
+- Destructive HTTP verbs require confirmation; flags are recorded only from
+  observed output and are never submitted automatically.
+
+In scope for reports: bridge command injection, path traversal, unauthenticated
+bridge access beyond loopback, sandbox escape that exposes host data, and secret
+leakage into sandbox transcripts or reports.

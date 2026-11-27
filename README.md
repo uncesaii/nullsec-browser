@@ -1,126 +1,103 @@
 # NullSec
 
-NullSec is a CTF-focused, privacy-first browser project based on **Mullvad Browser 16.0.2** (Firefox ESR 153.7.0). It combines the Mullvad privacy baseline with local-first workspaces, notes, flag detection, report drafting, a request dock, and a bring-your-own-key AI assistant.
+NullSec is a CTF-focused, privacy-first browser forked from **Mullvad Browser 16.0.2** (Firefox ESR 153.7.0). It keeps the Mullvad privacy baseline and adds a native AI agent sidebar with a **cloud Kali sandbox** for real security tooling.
 
-> NullSec is an independent project. It is not affiliated with or endorsed by Mullvad, Mozilla, or any AI provider.
+> NullSec is an independent project. It is not affiliated with or endorsed by Mullvad, Mozilla, E2B, or any AI provider.
 
 ## Status
 
-The repository currently contains the **M0a extension scaffold**, the **M0b native-bridge skeleton**, and the **M1 AI tool loop**. The Mullvad Browser source tree has not been forked or patched yet. The extension is usable in a Firefox 142+ or Mullvad Browser 16.0.2 profile for local development.
+The browser fork is built and branded. The native sidebar ships a full agent loop:
 
-Working now:
+- **Real providers with BYOK** — Token Harbor, OpenRouter, Anthropic, OpenAI, Google, Mistral, Groq, xAI, DeepSeek, Together, 302.AI, Muse, and OpenAI-compatible endpoints. Live model discovery via `/v1/models`; keys stored encrypted, never in the repo.
+- **Agentic CTF loop** — plan (PTT), per-cycle reflection/pivot, context compaction, grounded next-step hints, anti-loop escalation, "find ALL flags" continuation, mechanical flag capture, and evidence-checked flags.
+- **Cloud Kali sandbox** — an E2B template (`nullsec-kali`) with web/net, pwn, rev, crypto, and forensics tooling: nmap, ffuf, nuclei, sqlmap, hydra, pwntools, gdb, rizin, z3, RsaCtfTool, binwalk, volatility3, tshark, and more.
+- **Terminal tools in chat** — `shell`, `session` (persistent tmux), and `files` actions drive the sandbox. Commands and output render as inline tool chips and ANSI terminal panels, with auto-expanding output for shell/session.
+- **Browser tools** — read, navigate, click, type, scroll, raw HTTP requests, cookies (incl. HttpOnly), plus codec/hash/JWT/note/finding/flag actions.
+- **Offline knowledge base** — 5,125 security skills (HackSkills, MITRE ATT&CK, OWASP, ISECOM, standards, HF CTF/pentest datasets) with keyword retrieval.
+- **Campaign-ready** — per-challenge workspaces, configurable flag regex, plan/notes/observations, reports.
 
-- Challenge notebooks with notes, timeline events, and flag candidates.
-- Workspace modes (`ctf`, `personal`) and fail-closed authorized scope.
-- Explicit flag scanning of the active tab using configurable regex patterns.
-- Markdown report drafts with secret redaction and sanitized preview.
-- Request dock with history, scope-guarded repeater, URL fuzzer, and decoder.
-- Options, privacy page, and a DevTools panel with request history and an AI assistant.
-- Provider registry with 13 providers, session-only API keys, and OpenAI/Anthropic adapters.
-- AI chat with evidence IDs, read-only context tools, and opt-in CTF tools for tabs, navigation, DOM, HTTP requests, cookies, storage, page JavaScript, DevTools eval, and HAR.
-- Native bridge protocol, `ping`, and a local workspace metadata registry.
-
-Not built yet:
-
-- Browser source fork, rebranding, RFP unlock patch, `about:nullsec`.
-- Native bridge profile launch, CA import, OS-keychain secrets, and update checks.
-- Streaming responses and automatic report citations.
-- Signed AMO XPI, signed update manifest, CI release pipeline.
-- Real-build screenshots and visual approval.
+Benchmarked on a hard 3-stage web target (AcuBank) running inside the sandbox: **3/3 flags** with `deepseek-v4.1-flash:free` over Token Harbor — the agent read `/config.bak`, forged an HS256 admin JWT with Python, exploited SSRF, and chained a second-order IDOR.
 
 ## Requirements
 
-- Node.js 22 or newer.
-- Rust 1.85+ for the native bridge.
-- Firefox 142+ or Mullvad Browser 16.0.2 for temporary extension loading.
-- A Linux build host with ~50–100 GB free for the full browser build (deferred).
+- Windows 10/11 (or Linux/macOS for building).
+- Node.js 22+ (for the E2B bridge/CLI).
+- An [E2B](https://e2b.dev) account and API key for cloud execution.
+- A model API key (free tiers work; Token Harbor and OpenRouter are supported).
+- ~50-100 GB free disk and several hours for a full browser build (CI is used).
 
-## Development
+## Browser build
+
+The browser source lives in the Mullvad/Firefox tree and is patched at build time by `browser/patches/`.
 
 ```powershell
-npm install
-npm run icons
-npm run build
-npm test
-npm run typecheck
-npm run lint
+gh workflow run build-nullsec-browser.yml --repo uncesaii/nullsec-browser --ref main `
+  -f source_ref=mullvad-browser-153.7.0esr-16.0-1 -f target=windows64
 ```
 
-`npm run build` writes the unpacked extension to `dist/`. `npm run dev` watches for changes. `npm run package` builds minified assets. `npm run check` runs lint, typecheck, tests, and the extension build.
+The primary patch is `browser/patches/0010-nullsec-native-sidebar.patch` (sidebar UI, agent loop, providers, knowledge base, sandbox tools).
 
-Native bridge:
+## Cloud sandbox setup
 
-```bash
-cargo test --manifest-path native/nullsec-bridge/Cargo.toml
-cargo build --release --manifest-path native/nullsec-bridge/Cargo.toml
+See [`sandbox/README.md`](sandbox/README.md) for the full guide. In short:
+
+```powershell
+npm install -g @e2b/cli
+e2b template create nullsec-kali -p sandbox/e2b --cpu-count 4 --memory-mb 4096
+cd sandbox/bridge
+# create .env with E2B_API_KEY=...
+start-bridge.cmd        # auto-restarting local bridge on 127.0.0.1:8787
 ```
 
-See `native/README.md` for native-messaging host installation.
+The sidebar talks to the bridge (`browser.nullsec.ai.bridge`), which creates one E2B sandbox per challenge and exposes:
 
-Load `dist/` temporarily:
+| Endpoint | Purpose |
+| --- | --- |
+| `/exec` | Run a command (root) with timeout/background |
+| `/session/*` | Persistent tmux sessions (start/send/capture/list/kill) |
+| `/file/*` | Read/write/list/upload/download artifacts |
+| `/sbx/*` | Create/extend/kill sandboxes |
 
-1. Open `about:debugging#/runtime/this-firefox`.
-2. Choose **Load Temporary Add-on**.
-3. Select `dist/manifest.json`.
+Sandboxes run as root (the Kali image's uid-1000 account cannot exec `/bin/sh` under E2B). The bridge auto-recreates expired sandboxes.
 
-For the sidebar, use the NullSec toolbar button, `Alt+Shift+N`, or the context menu. The request dock opens with `Alt+Shift+D`.
+## Running a CTF
+
+1. Start the bridge (`sandbox/bridge/start-bridge.cmd`).
+2. Connect a provider in the sidebar and pick a model.
+3. Enable **Autopilot**.
+4. For local labs, run the target **inside** the E2B sandbox (localhost is reachable there), or use a public target; the agent reaches HTTP targets with `shell`/curl.
+5. Send the objective and watch the tool chips and terminals.
 
 ## Repository layout
 
 ```text
-extension/
-  manifest.json        Manifest V3 extension manifest
-  icons/               Source SVGs and generated PNGs
-  static/              Sidebar, dock, options, privacy, DevTools HTML
-  src/
-    background/        Request capture, scope guard, repeater, rate limit
-    content/           Explicit page-context and flag scans
-    sidebar/           Notes, AI chat/tools, scope, flags, reports
-    dock/              History, repeater, fuzzer, decoder
-    options/           Provider, agent, patterns, bridge, local data
-    privacy/           Data-handling disclosure
-    devtools/          DevTools page and panel
-    lib/               Core types, storage, DB, scope, redaction, reports
-    ui/                Preact shell, components, design tokens
-prompts/               AI mode prompts
-report-templates/      CTF, pentest, and team submission templates
-tests/                 Vitest unit tests
-scripts/               Extension build and icon generation
-providers.json         Provider endpoint registry
-native/
-  nullsec-bridge/      Rust native-messaging bridge (M0b skeleton)
-  hosts/               Linux and Windows host manifests
-docs/                  Architecture and security notes
+browser/
+  patches/                 Source patches (0010 = NullSec sidebar/agent)
+sandbox/
+  e2b/                     Kali E2B template (Dockerfile, setup.sh, attribution)
+  bridge/                  Local Node bridge (E2B SDK), .env, start-bridge.cmd
+extension/                 Legacy extension/docs artifacts
+native/                    Native-messaging bridge skeleton
+docs/                      Architecture and security notes
 ```
 
-## Security model
+## Security and privacy
 
-- **Local-first.** No NullSec account service, telemetry, or prompt proxy.
-- **Scope guard.** Active requests fail closed unless the target matches a workspace scope rule. Redirects are re-checked against scope before following.
-- **Rate limit.** The background worker enforces a per-workspace requests-per-minute limit.
-- **Session-only keys.** Provider API keys live in the sidebar's `sessionStorage`, not extension storage, IndexedDB, logs, or reports.
-- **Data consent.** `authenticationInfo`, `browsingActivity`, and `websiteContent` are optional Firefox data permissions. Firefox prompts before the first provider test or prompt.
-- **Opt-in active AI tools.** The assistant is read-only by default. In a CTF workspace you can enable scoped tab control, navigation, DOM actions, HTTP requests, cookies, storage, and page JavaScript. Cookie/storage/JavaScript access is a separate sensitive-data toggle. Active calls require confirmation unless auto-approve is enabled.
-- **Scope guardrails.** Active tab, navigation, cookie, storage, and HTTP tools reject targets outside the workspace scope. Page JavaScript and DevTools eval can bypass scope and are therefore behind the sensitive-data toggle.
-- **Redaction.** Reports and page-context previews redact known authorization, cookie, API-key, JWT, and private-key patterns.
-- **Excluded traffic.** AI provider hosts and extension pages are excluded from request capture. Normal browser request/response bodies are not captured.
-- **Sanitized Markdown.** Report previews pass through DOMPurify.
-
-Redaction is a safety net, not a guarantee. Review every export.
-
-`web-ext lint` reports zero errors. Expected warnings are Preact's internal `innerHTML` assignment and the opt-in page-JavaScript tool's `Function` constructor.
+- **Local-first control plane.** The bridge binds to `127.0.0.1`; no NullSec account service or telemetry.
+- **Keys stay encrypted** in browser storage; the bridge `.env` is gitignored. Never commit API keys.
+- **Cloud execution is explicit.** The agent's commands/files are processed by E2B; keep secrets out of the sandbox.
+- **Scope and guardrails.** Destructive HTTP verbs require confirmation; page content is treated as untrusted; flags must appear in observed output.
+- **Strict flag capture.** Flags are recorded only from tool results/pages, with a configurable regex; nothing is auto-submitted.
 
 ## Roadmap
 
-1. **M0a:** extension scaffold, local tools, build and tests. Done.
-2. **M0b:** native bridge skeleton and install docs. Done.
-3. **M1:** AI provider calls, page-context pipeline, evidence citations. Done.
-4. **M2:** first browser source build and visual approval gate. Next (needs a Linux build host).
-5. **M3–M9:** rebrand, privacy defaults, workspaces, interception adapters, request dock integration, notes/reports, streaming AI.
-6. **M10:** packaging, AMO unlisted XPI, signed update manifest, release CI.
+1. **M0-M1:** extension scaffold, native bridge, AI loop. Done.
+2. **M2:** native browser build + rebranding + RFP unlock. Done.
+3. **M3:** E2B Kali sandbox, bridge, terminal tools, terminal/tool UI. Done.
+4. **M4:** live streaming terminal output, expand-to-fullscreen, subagent verifier.
+5. **M5:** campaign queue (multi-challenge), scoreboard/flag submission, cross-category eval suite.
+6. **M6:** packaging, signed XPI/updates, release CI.
 
-## License
+## Licenses
 
-Mozilla Public License 2.0. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-Only test systems for which you have explicit authorization. NullSec is intended for CTFs, labs, and authorized engagements.
+The sandbox runs E2B cloud execution on Kali Linux; each component and security tool retains its own license. See `sandbox/e2b/THIRD_PARTY_NOTICES.md`.

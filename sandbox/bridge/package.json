@@ -1,0 +1,13 @@
+{
+  "name": "nullsec-e2b-bridge",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "scripts": {
+    "start": "node server.mjs",
+    "smoke": "node smoke.mjs"
+  },
+  "dependencies": {
+    "e2b": "^2.55.0"
+  }
+}
