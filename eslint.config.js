@@ -38,4 +38,17 @@ export default tseslint.config(
       globals: globals.node,
     },
   },
+  {
+    files: ["sandbox/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        fetch: "readonly",
+        Blob: "readonly",
+      },
+    },
+    rules: {
+      "no-empty": ["error", { allowEmptyCatch: true }],
+    },
+  },
 );
