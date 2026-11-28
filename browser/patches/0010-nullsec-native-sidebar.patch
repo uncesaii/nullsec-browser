@@ -1,9 +1,9 @@
 diff --git a/browser/actors/NullSecChild.sys.mjs b/browser/actors/NullSecChild.sys.mjs
 new file mode 100644
-index 00000000..f461b8cb
+index 00000000..6e1e52ce
 --- /dev/null
 +++ b/browser/actors/NullSecChild.sys.mjs
-@@ -0,0 +1,287 @@
+@@ -0,0 +1,285 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -65,13 +65,12 @@ index 00000000..f461b8cb
 +      cursor = doc.createElement("div");
 +      cursor.className = "nullsec-agent-cursor";
 +      cursor.style.cssText =
-+        "position:fixed;width:22px;height:22px;margin:-11px 0 0 -11px;border:2px solid #fff;border-radius:50%;" +
-+        "box-shadow:0 0 0 2px #000,0 0 12px rgba(255,255,255,.9);pointer-events:none;" +
-+        "transition:left .12s ease,top .12s ease;";
-+      const dot = doc.createElement("span");
-+      dot.style.cssText =
-+        "position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;background:#fff;border-radius:50%;";
-+      cursor.appendChild(dot);
++        "position:fixed;width:26px;height:26px;margin:-2px 0 0 -5px;pointer-events:none;z-index:2147483647;" +
++        "filter:drop-shadow(0 1px 2px rgba(0,0,0,.85));transition:left .12s ease,top .12s ease;";
++      cursor.innerHTML =
++        '<svg width="26" height="26" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
++        '<path d="M5 2 L5 19 L9.2 14.8 L12.2 21.5 L15.2 20.2 L12.2 13.6 L19 13.6 Z" ' +
++        'fill="#fff" stroke="#000" stroke-width="1.6" stroke-linejoin="round"/></svg>';
 +      layer.appendChild(cursor);
 +    }
 +    cursor.style.left = `${x}px`;
@@ -246,7 +245,6 @@ index 00000000..f461b8cb
 +    } catch {}
 +    await this.sleep(180);
 +    element.click();
-+    this.ripple(x, y);
 +    await this.sleep(420);
 +    return { ok: true, clicked: this.describe(element) };
 +  }
@@ -291,7 +289,6 @@ index 00000000..f461b8cb
 +    };
 +  }
 +}
-\ No newline at end of file
 diff --git a/browser/actors/NullSecParent.sys.mjs b/browser/actors/NullSecParent.sys.mjs
 new file mode 100644
 index 00000000..2a2301ae
@@ -1898,10 +1895,10 @@ index 00000000..c9cd4b19
 +init();
 diff --git a/browser/components/nullsec/sidebar.css b/browser/components/nullsec/sidebar.css
 new file mode 100644
-index 00000000..69980df0
+index 00000000..a421301a
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.css
-@@ -0,0 +1,2288 @@
+@@ -0,0 +1,2294 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -2662,20 +2659,26 @@ index 00000000..69980df0
 +
 +.scroll-bottom {
 +  align-items: center;
-+  background-color: var(--ns-muted);
-+  border: 1px solid var(--ns-border);
-+  border-radius: 999px;
++  background-color: transparent;
++  border: 0;
++  border-radius: 6px;
 +  color: var(--ns-fg);
 +  cursor: pointer;
 +  display: flex;
-+  height: 32px;
++  height: 26px;
 +  justify-content: center;
-+  left: 50%;
++  right: 12px;
++  left: auto;
 +  position: absolute;
-+  bottom: 10px;
-+  transform: translateX(-50%);
-+  width: 32px;
++  bottom: 8px;
++  opacity: 0.55;
++  width: 26px;
 +  z-index: 5;
++}
++
++.scroll-bottom:hover {
++  background-color: var(--ns-muted);
++  opacity: 1;
 +}
 +
 +.scroll-bottom[hidden] {
@@ -4655,10 +4658,10 @@ index 00000000..27acb951
 +</html>
 diff --git a/browser/components/nullsec/sidebar.mjs b/browser/components/nullsec/sidebar.mjs
 new file mode 100644
-index 00000000..4394a38c
+index 00000000..59f75729
 --- /dev/null
 +++ b/browser/components/nullsec/sidebar.mjs
-@@ -0,0 +1,5277 @@
+@@ -0,0 +1,5299 @@
 +﻿/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -8067,23 +8070,45 @@ index 00000000..4394a38c
 +    case "click":
 +    case "type":
 +    case "scroll": {
-+      const actor = pageActor();
++      let actor = pageActor();
++      for (let attempt = 0; !actor && attempt < 3; attempt++) {
++        await sleep(500);
++        actor = pageActor();
++      }
 +      if (!actor) {
-+        return { ok: false, error: "page actor unavailable" };
++        return {
++          ok: true,
++          text: "(the page is still loading; action skipped, retry this step)",
++        };
 +      }
-+      if (action.type === "click") {
-+        return actor.sendQuery("NullSec:click", {
-+          selector: action.selector,
-+        });
++      if (action.type === "click" && !action.selector) {
++        return {
++          ok: true,
++          text: "(no selector provided; read the page and choose a selector)",
++        };
 +      }
-+      if (action.type === "type") {
-+        return actor.sendQuery("NullSec:type", {
-+          selector: action.selector,
-+          text: action.text,
-+          submit: action.submit,
-+        });
++      try {
++        if (action.type === "click") {
++          return await actor.sendQuery("NullSec:click", {
++            selector: action.selector,
++          });
++        }
++        if (action.type === "type") {
++          return await actor.sendQuery("NullSec:type", {
++            selector: action.selector,
++            text: action.text,
++            submit: action.submit,
++          });
++        }
++        return await actor.sendQuery("NullSec:scroll", { y: action.y });
++      } catch (error) {
++        return {
++          ok: true,
++          text: `(action deferred while the page changed: ${String(
++            error?.message || error
++          ).slice(0, 160)})`,
++        };
 +      }
-+      return actor.sendQuery("NullSec:scroll", { y: action.y });
 +    }
 +    case "request": {
 +      const url = String(action.url || "");

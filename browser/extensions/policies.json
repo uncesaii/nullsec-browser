@@ -1,0 +1,37 @@
+{
+  "policies": {
+    "3rdparty": {
+      "Extensions": {
+        "uBlock0@raymondhill.net": {
+          "adminSettings": {
+            "selectedFilterLists": [
+              "user-filters",
+              "ublock-filters",
+              "ublock-badware",
+              "ublock-privacy",
+              "ublock-unbreak",
+              "ublock-quick-fixes",
+              "easylist",
+              "easyprivacy",
+              "plowe-0",
+              "urlhaus-1",
+              "https://raw.githubusercontent.com/brave/adblock-lists/master/brave-lists/brave-specific.txt",
+              "https://raw.githubusercontent.com/brave/adblock-lists/master/brave-lists/brave-firstparty.txt",
+              "https://raw.githubusercontent.com/brave/adblock-lists/master/brave-lists/brave-firstparty-regional.txt",
+              "https://raw.githubusercontent.com/brave/adblock-lists/master/brave-lists/brave-social.txt",
+              "https://raw.githubusercontent.com/brave/adblock-lists/master/brave-lists/brave-unbreak.txt"
+            ],
+            "externalLists": [
+              "https://raw.githubusercontent.com/brave/adblock-lists/master/brave-lists/brave-specific.txt",
+              "https://raw.githubusercontent.com/brave/adblock-lists/master/brave-lists/brave-firstparty.txt",
+              "https://raw.githubusercontent.com/brave/adblock-lists/master/brave-lists/brave-firstparty-regional.txt",
+              "https://raw.githubusercontent.com/brave/adblock-lists/master/brave-lists/brave-social.txt",
+              "https://raw.githubusercontent.com/brave/adblock-lists/master/brave-lists/brave-unbreak.txt"
+            ],
+            "userFilters": "! NullSec shield - YouTube\nyoutube.com##.ytp-ad-module\nyoutube.com##.ytp-ad-overlay-container\nyoutube.com##.ytp-ad-progress-list\nyoutube.com##.video-ads\nyoutube.com##ytd-ad-slot-renderer\nyoutube.com##ytd-display-ad-renderer\nyoutube.com##ytd-promoted-sparkles-web-renderer\nyoutube.com##ytd-in-feed-ad-layout-renderer\nyoutube.com##ytd-banner-promo-renderer\nyoutube.com##ytd-statement-banner-renderer\nyoutube.com##ytd-video-masthead-ad-v3-renderer\nyoutube.com##.ytd-companion-slot-renderer\nyoutube.com##.ytp-suggested-action\nyoutube.com##.ytp-featured-product\nyoutube.com##.ytp-ad-badge\nyoutube.com##.ytp-ad-text\nyoutube.com##.ytp-ad-button\nyoutube.com##.ytp-ad-feedback-dialog\nyoutube.com##tp-yt-paper-dialog:has(ytd-enforcement-message-view-model)\n||youtube.com/api/stats/ads\n||youtube.com/pagead/\n||youtube.com/ptracking?\n||youtube.com/get_midroll_info?\n||youtube.com/api/stats/qoe?\n||youtube.com/api/stats/atr?\n! NullSec shield - Spotify\n||adeventtracker.spotify.com^\n||spclient.wg.spotify.com/ad-logic^\n||spclient.wg.spotify.com/ads^\n||pubads.g.doubleclick.net^\n||securepubads.g.doubleclick.net^\n||googlesyndication.com^\n||doubleclick.net^\n||googleadservices.com^\n||adservice.google.com^\n||amazon-adsystem.com^\n||criteo.com^\n||taboola.com^\n||outbrain.com^\nopen.spotify.com##.ad-slot\nopen.spotify.com##[data-testid=\"ad-slot\"]\nopen.spotify.com##[aria-label=\"Advertisement\"]\nopen.spotify.com##.Root__now-playing-bar ~ .ad\nopen.spotify.com##.now-playing__ad\n! NullSec shield - generic cosmetics\n##[id^=\"google_ads_iframe\"]\n##[id^=\"div-gpt-ad\"]\n##[data-ad-slot]\n##[data-ad-client]\n"
+          }
+        }
+      }
+    }
+  }
+}

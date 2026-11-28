@@ -315,6 +315,15 @@ jobs:
           set -o pipefail
           xvfb-run -a ./mach build ${{ inputs.build_target }} 2>&1 | tee ../build.log
 
+      - name: Add Brave-style adblock shield
+        run: |
+          set -eux
+          mkdir -p src/obj-nullsec-win64/dist/bin/distribution/extensions
+          cp browser/extensions/uBlock0@raymondhill.net.xpi \
+            src/obj-nullsec-win64/dist/bin/distribution/extensions/
+          cp browser/extensions/policies.json \
+            src/obj-nullsec-win64/dist/bin/distribution/policies.json
+
       - name: Show build failure
         if: failure()
         run: |
