@@ -4193,6 +4193,90 @@ index 00000000..a421301a
 +#header-traffic {
 +  display: none !important;
 +}
+diff --git a/browser/components/nullsec/chrome-theme.css b/browser/components/nullsec/chrome-theme.css
+new file mode 100644
+index 00000000..a6e7d3c7
+--- /dev/null
++++ b/browser/components/nullsec/chrome-theme.css
+@@ -0,0 +1,78 @@
++/* NullSec black & white chrome theme (loaded at startup via browser.xhtml). */
++:root {
++  --toolbar-bgcolor: #000000 !important;
++  --toolbar-color: #f5f5f5 !important;
++  --lwt-accent-color: #000000 !important;
++  --lwt-text-color: #f5f5f5 !important;
++  --lwt-toolbarbutton-icon-fill: #f5f5f5 !important;
++  --lwt-toolbarbutton-hover-background: #141414 !important;
++  --tab-selected-bgcolor: #0a0a0a !important;
++  --tab-selected-textcolor: #ffffff !important;
++  --tab-text-color: #a3a3a3 !important;
++  --tab-loading-fill: #ffffff !important;
++  --urlbar-box-bgcolor: #0a0a0a !important;
++  --urlbar-box-text-color: #f5f5f5 !important;
++  --urlbarView-highlight-background: #1a1a1a !important;
++  --arrowpanel-background: #050505 !important;
++  --arrowpanel-color: #f5f5f5 !important;
++  --arrowpanel-border-color: #1f1f1f !important;
++}
++#navigator-toolbox,
++#TabsToolbar,
++#nav-bar,
++#PersonalToolbar,
++#sidebar-box,
++#sidebar-header {
++  background: #000000 !important;
++  color: #f5f5f5 !important;
++  border-color: #1f1f1f !important;
++}
++#navigator-toolbox {
++  border-bottom: 1px solid #1f1f1f !important;
++}
++.tabbrowser-tab {
++  color: #a3a3a3 !important;
++}
++.tabbrowser-tab[selected] {
++  color: #ffffff !important;
++}
++.tab-background[selected] {
++  background: #0a0a0a !important;
++}
++#urlbar-background,
++#searchbar {
++  background: #0a0a0a !important;
++  border: 1px solid #1f1f1f !important;
++  color: #f5f5f5 !important;
++}
++#urlbar-input,
++.searchbar-textbox {
++  color: #f5f5f5 !important;
++}
++#urlbar[focused] > #urlbar-background {
++  border-color: #3a3a3a !important;
++}
++#identity-box,
++#tracking-protection-icon-container,
++#star-button,
++#reader-mode-button {
++  fill: #f5f5f5 !important;
++  color: #f5f5f5 !important;
++}
++toolbarbutton,
++.toolbarbutton-1,
++#PanelUI-button,
++#PanelUI-menu-button {
++  color: #f5f5f5 !important;
++  fill: #f5f5f5 !important;
++}
++#sidebar-header {
++  border-color: #1f1f1f !important;
++}
++.panel-arrowcontent,
++.panel-subview-body,
++menupopup,
++panel {
++  background: #050505 !important;
++  color: #f5f5f5 !important;
++}
 diff --git a/browser/components/nullsec/sidebar.html b/browser/components/nullsec/sidebar.html
 new file mode 100644
 index 00000000..27acb951
