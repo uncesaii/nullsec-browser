@@ -335,25 +335,6 @@ jobs:
           set -o pipefail
           ./mach package 2>&1 | tee -a ../build.log
 
-      - name: Inject Brave-style adblock shield
-        run: |
-          set -eux
-          cd src/obj-nullsec-win64/dist
-          pkg=$(find . -maxdepth 1 -name 'nullsec-*.win64.zip' | head -1)
-          test -n "$pkg"
-          rm -rf abstage
-          mkdir -p abstage
-          unzip -q "$pkg" -d abstage
-          mkdir -p abstage/nullsec/distribution/extensions
-          cp "$GITHUB_WORKSPACE/browser/extensions/uBlock0@raymondhill.net.xpi" \
-            abstage/nullsec/distribution/extensions/
-          cp "$GITHUB_WORKSPACE/browser/extensions/policies.json" \
-            abstage/nullsec/distribution/
-          rm "$pkg"
-          (cd abstage && zip -qr "../$(basename "$pkg")" nullsec)
-          rm -rf abstage
-          unzip -l "$pkg" | grep -E 'distribution/(extensions/uBlock|policies.json)'
-
       - name: Collect package
         run: |
           set -eux
